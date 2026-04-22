@@ -49,9 +49,10 @@ function graphDateTimeToUtcIso(dateTime) {
  * @returns {string} fresh access token
  */
 export async function getOrRefreshUserToken(userId) {
-  const user = await User.findById(userId).select(
-    "msRefreshToken msAccessToken msAccessTokenExpiresAt"
-  );
+  const user = await User.findOne({
+    where: { id: userId },
+    attributes: ["id", "msRefreshToken", "msAccessToken", "msAccessTokenExpiresAt"]
+  });
   if (!user?.msRefreshToken) {
     const err = new Error("Microsoft Teams not connected. Please connect first.");
     err.status = 403;
@@ -94,13 +95,14 @@ export async function getOrRefreshUserToken(userId) {
   }
 
   // Persist refreshed tokens
-  await User.findByIdAndUpdate(userId, {
-    $set: {
+  await User.update(
+    {
       msAccessToken: access_token,
       msRefreshToken: refresh_token || user.msRefreshToken,
       msAccessTokenExpiresAt: new Date(Date.now() + Number(expires_in || 3600) * 1000)
-    }
-  });
+    },
+    { where: { id: userId } }
+  );
 
   return access_token;
 }
