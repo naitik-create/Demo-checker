@@ -160,7 +160,7 @@ export async function getMyTeamsData(req, res, next) {
 
     const [profile, calendarMeetings] = await Promise.all([
       getUserProfile(userId).catch((e) => { console.warn("[getMyTeamsData] profile failed:", e.message); return null; }),
-      getUserCalendarMeetings(userId, { pastDays: 7, futureDays: 14 }).catch((e) => { console.warn("[getMyTeamsData] calendarMeetings failed:", e.message); return []; })
+      getUserCalendarMeetings(userId, { pastDays: 1, futureDays: 1 }).catch((e) => { console.warn("[getMyTeamsData] calendarMeetings failed:", e.message); return []; })
     ]);
 
     res.json({
