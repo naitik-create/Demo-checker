@@ -95,8 +95,7 @@ export default function ManagerConsultantsPage() {
         </div>
 
         <div className="table">
-          <div className="table__row table__row--head"
-            style={{ gridTemplateColumns: "2fr 2fr 2fr 1.5fr auto" }}>
+          <div className="table__row table__row--head table__row--5cols">
             <div>Name</div>
             <div>Email</div>
             <div>MS Account</div>
@@ -105,8 +104,7 @@ export default function ManagerConsultantsPage() {
           </div>
 
           {state.consultants.map((c) => (
-            <div key={c.id} className="table__row"
-              style={{ gridTemplateColumns: "2fr 2fr 2fr 1.5fr auto", alignItems: "center" }}>
+            <div key={c.id} className="table__row table__row--5cols">
               <div className="ellipsis" style={{ fontWeight: 500 }}>{c.name}</div>
               <div className="muted" style={{ fontSize: "0.85rem" }}>{c.email}</div>
               <div className="muted" style={{ fontSize: "0.82rem" }}>

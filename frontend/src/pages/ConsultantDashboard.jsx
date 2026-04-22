@@ -57,7 +57,8 @@ export default function ConsultantDashboard() {
     meetings: [],
     teamsData: null,
     teamsLoading: false,
-    joiningMeetingId: ""
+    joiningMeetingId: "",
+    totalMeetings: 0
   });
   const [perf, setPerf] = useState({ loading: false, error: "", metrics: null });
   const [syncing, setSyncing] = useState(false);
@@ -73,7 +74,13 @@ export default function ConsultantDashboard() {
       try {
         const meetingsRes = await apiFetch("/api/meetings", { auth: true });
         if (!alive) return;
-        setState((s) => ({ ...s, loading: false, meetings: meetingsRes.meetings || [], error: "" }));
+        setState((s) => ({
+          ...s,
+          loading: false,
+          meetings: meetingsRes.meetings || [],
+          totalMeetings: meetingsRes.total ?? meetingsRes.meetings?.length ?? 0,
+          error: ""
+        }));
       } catch (e) {
         if (!alive) return;
         setState((s) => ({ ...s, loading: false, error: e.message || "Failed to load meetings" }));
@@ -95,7 +102,11 @@ export default function ConsultantDashboard() {
             })
             .then((meetingsRes) => {
               if (alive && meetingsRes?.meetings) {
-                setState((s) => ({ ...s, meetings: meetingsRes.meetings }));
+                setState((s) => ({
+                  ...s,
+                  meetings: meetingsRes.meetings,
+                  totalMeetings: meetingsRes.total ?? meetingsRes.meetings?.length ?? 0
+                }));
               }
             })
             .catch(() => {});
@@ -141,7 +152,11 @@ export default function ConsultantDashboard() {
   async function refreshMeetingsOnly() {
     try {
       const meetingsRes = await apiFetch("/api/meetings", { auth: true });
-      setState((s) => ({ ...s, meetings: meetingsRes.meetings || [] }));
+      setState((s) => ({
+        ...s,
+        meetings: meetingsRes.meetings || [],
+        totalMeetings: meetingsRes.total ?? meetingsRes.meetings?.length ?? 0
+      }));
     } catch (e) {
       setState((s) => ({ ...s, error: e.message || "Failed to refresh meetings" }));
     }
@@ -158,6 +173,7 @@ export default function ConsultantDashboard() {
       setState((s) => ({
         ...s,
         meetings: meetingsRes.meetings || [],
+        totalMeetings: meetingsRes.total ?? meetingsRes.meetings?.length ?? 0,
         teamsData: teamsRes,
         error: ""
       }));
@@ -204,7 +220,11 @@ export default function ConsultantDashboard() {
       });
       const refreshed = await apiFetch("/api/meetings", { auth: true });
       const monitoredMeeting = (refreshed.meetings || []).find((m) => m.teamsMeetingId === teamsId);
-      setState((s) => ({ ...s, meetings: refreshed.meetings || [] }));
+      setState((s) => ({
+        ...s,
+        meetings: refreshed.meetings || [],
+        totalMeetings: refreshed.total ?? refreshed.meetings?.length ?? 0
+      }));
       if (monitoredMeeting?.id) {
         await joinMeeting(monitoredMeeting.id);
       }
@@ -214,7 +234,7 @@ export default function ConsultantDashboard() {
   }
 
   const stats = useMemo(() => {
-    const totalDemos = state.meetings.length;
+    const totalDemos = state.totalMeetings;
     const scores = state.meetings.map((m) => scoreOrNull(m.score)).filter((n) => n !== null);
     const avgScore = scores.length ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)) : 0;
     const completed = state.meetings.filter((m) => m.analysisStatus === "completed").length;

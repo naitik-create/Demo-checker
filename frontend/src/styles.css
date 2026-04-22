@@ -633,6 +633,9 @@ select.input { cursor: pointer; }
   border-top: 1px solid var(--card-border);
   transition: background 0.2s;
 }
+.table__row--5cols {
+  grid-template-columns: 2fr 2fr 2fr 1.5fr auto;
+}
 .table__row:not(.table__row--head):hover { background: var(--surface-1); }
 .table__row--head {
   border-top: none;
