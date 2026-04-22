@@ -95,7 +95,8 @@ export default function ManagerConsultantsPage() {
         </div>
 
         <div className="table">
-          <div className="table__row table__row--head">
+          <div className="table__row table__row--head"
+            style={{ gridTemplateColumns: "2fr 2fr 2fr 1.5fr auto" }}>
             <div>Name</div>
             <div>Email</div>
             <div>MS Account</div>
@@ -104,7 +105,8 @@ export default function ManagerConsultantsPage() {
           </div>
 
           {state.consultants.map((c) => (
-            <div key={c.id} className="table__row">
+            <div key={c.id} className="table__row"
+              style={{ gridTemplateColumns: "2fr 2fr 2fr 1.5fr auto", alignItems: "center" }}>
               <div className="ellipsis" style={{ fontWeight: 500 }}>{c.name}</div>
               <div className="muted" style={{ fontSize: "0.85rem" }}>{c.email}</div>
               <div className="muted" style={{ fontSize: "0.82rem" }}>
@@ -141,7 +143,7 @@ export default function ManagerConsultantsPage() {
               </div>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <Link className="link" to={`/consultants/${c.id}`}
-                  style={{ fontSize: "0.85rem", display:"flex", alignItems:"center", gap:4 }}>
+                  style={{ fontSize: "0.85rem", display:"flex", alignItems:"center", gap:4, whiteSpace: "nowrap" }}>
                   <Eye size={12}/> View
                 </Link>
               </div>
