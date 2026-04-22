@@ -84,8 +84,8 @@ function toDateStr(d) {
   return d.toISOString().split("T")[0];
 }
 
-const DEFAULT_CAL_PAST_DAYS = 30;
-const DEFAULT_CAL_FUTURE_DAYS = 14;
+const DEFAULT_CAL_PAST_DAYS = 1;
+const DEFAULT_CAL_FUTURE_DAYS = 1;
 
 function defaultCalFromStr() {
   return toDateStr(new Date(Date.now() - DEFAULT_CAL_PAST_DAYS * 86400000));
