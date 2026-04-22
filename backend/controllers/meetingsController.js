@@ -225,12 +225,15 @@ export async function listMeetings(req, res, next) {
       where.consultantId = req.query.consultantId;
     }
 
-    const meetings = await Meeting.findAll({
-      where,
-      order: [["startTime", "DESC"]],
-      limit,
-      include: [{ model: User, as: "consultant", attributes: ["id", "name", "email", "role"] }]
-    });
+    const [total, meetings] = await Promise.all([
+      Meeting.count({ where }),
+      Meeting.findAll({
+        where,
+        order: [["startTime", "DESC"]],
+        limit,
+        include: [{ model: User, as: "consultant", attributes: ["id", "name", "email", "role"] }]
+      })
+    ]);
 
     const meetingIds = meetings.map((m) => m.id);
     const scores = await DemoScore.findAll({ where: { meetingId: { [Op.in]: meetingIds } } });
@@ -238,6 +241,7 @@ export async function listMeetings(req, res, next) {
 
     res.json({
       ok: true,
+      total,
       meetings: meetings.map((m) => {
         const score = scoreByMeetingId.get(m.id);
         return {

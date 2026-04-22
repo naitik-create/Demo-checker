@@ -27,7 +27,7 @@ function ScoreColor(score) {
 export default function ManagerOverviewPage() {
   const [state, setState] = useState({
     loading: true, error: "", syncMsg: "", syncing: false,
-    meetings: [], consultants: []
+    meetings: [], consultants: [], totalMeetings: 0
   });
   const [monSearch, setMonSearch] = useState("");
   const [monFrom, setMonFrom] = useState(() => {
@@ -46,6 +46,7 @@ export default function ManagerOverviewPage() {
       setState((s) => ({
         ...s, loading: false,
         meetings: meetingsRes.meetings || [],
+        totalMeetings: meetingsRes.total ?? meetingsRes.meetings?.length ?? 0,
         consultants: consultantsRes.consultants || []
       }));
     } catch (e) {
@@ -89,13 +90,13 @@ export default function ManagerOverviewPage() {
   }
 
   const stats = useMemo(() => {
-    const totalDemos = state.meetings.length;
+    const totalDemos = state.totalMeetings;
     const scores = state.meetings.map((m) => scoreOrNull(m.score)).filter((n) => n !== null);
     const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
     const connectedConsultants = state.consultants.filter((c) => c.teamsConnected).length;
     const totalConsultants = state.consultants.length;
     return { totalDemos, avgScore, connectedConsultants, totalConsultants };
-  }, [state.meetings, state.consultants]);
+  }, [state.meetings, state.totalMeetings, state.consultants]);
 
   const trendData = useMemo(() => {
     return state.meetings
