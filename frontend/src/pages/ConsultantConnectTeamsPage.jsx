@@ -154,13 +154,17 @@ export default function ConsultantConnectTeamsPage() {
 
   // ── Connected view ──
   if (state.phase === "connected") {
+    const initials = p?.displayName
+      ? p.displayName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+      : "MS";
+
     return (
       <div className="page">
         <div className="header">
           <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Link2 size={26} color="var(--accent)" /> Microsoft Teams
           </h1>
-          <p>Your Microsoft 365 account is connected.</p>
+          <p>Manage your Microsoft 365 account connection.</p>
         </div>
 
         {state.toast && (
@@ -172,71 +176,85 @@ export default function ConsultantConnectTeamsPage() {
           </div>
         )}
 
-        <div className="card" style={{ background: "rgba(34,197,94,0.06)", borderColor: "rgba(34,197,94,0.2)" }}>
-          <div className="card__head">
-            <h2 style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "1rem" }}>
-              <CheckCircle size={18} color="#4ade80" /> Connected Microsoft Account
-            </h2>
+        {/* Status hero */}
+        <div className="card" style={{
+          background: "linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.03))",
+          borderColor: "rgba(34,197,94,0.25)",
+          display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", padding: "24px 28px"
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
+            background: "linear-gradient(135deg,#6366f1,#38bdf8)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 20, fontWeight: 700, color: "#fff"
+          }}>
+            {initials}
           </div>
-          {p && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16, marginTop: 8 }}>
-              {p.displayName && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <User size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-                  <div>
-                    <div className="muted" style={{ fontSize: "0.7rem" }}>Name</div>
-                    <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{p.displayName}</div>
-                  </div>
-                </div>
-              )}
-              {p.email && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Mail size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-                  <div>
-                    <div className="muted" style={{ fontSize: "0.7rem" }}>Email</div>
-                    <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{p.email}</div>
-                  </div>
-                </div>
-              )}
-              {p.jobTitle && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Briefcase size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-                  <div>
-                    <div className="muted" style={{ fontSize: "0.7rem" }}>Job Title</div>
-                    <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{p.jobTitle}</div>
-                  </div>
-                </div>
-              )}
-              {p.department && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Building size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-                  <div>
-                    <div className="muted" style={{ fontSize: "0.7rem" }}>Department</div>
-                    <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{p.department}</div>
-                  </div>
-                </div>
-              )}
-              {p.officeLocation && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <MapPin size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-                  <div>
-                    <div className="muted" style={{ fontSize: "0.7rem" }}>Office</div>
-                    <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{p.officeLocation}</div>
-                  </div>
-                </div>
-              )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <CheckCircle size={18} color="#4ade80" />
+              <span style={{ fontWeight: 700, fontSize: "1.1rem" }}>
+                {p?.displayName || "Microsoft Account"}
+              </span>
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                background: "rgba(34,197,94,0.15)", color: "#4ade80",
+                borderRadius: 20, padding: "2px 10px", fontSize: "0.72rem", fontWeight: 600
+              }}>
+                Connected
+              </span>
             </div>
-          )}
-          <div style={{ marginTop: 16, display: "flex", gap: 12, alignItems: "center" }}>
-            <button className="btn btn--ghost" type="button" onClick={onManualConnect}
+            <div className="muted" style={{ fontSize: "0.85rem" }}>{p?.email || ""}</div>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+            <button className="btn btn--ghost btn--sm" type="button" onClick={onManualConnect}
               style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <RefreshCw size={14} /> Reconnect
             </button>
-            <Link className="link" to="/consultant" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <ArrowLeft size={14} /> Back to Dashboard
+            <Link className="btn btn--sm" to="/consultant"
+              style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
+              <ArrowLeft size={14} /> Dashboard
             </Link>
           </div>
         </div>
+
+        {/* Profile details */}
+        {p && (
+          <div className="card">
+            <div className="card__head">
+              <h2 style={{ fontSize: "0.95rem", display: "flex", alignItems: "center", gap: 8 }}>
+                <User size={16} color="var(--accent)" /> Account Details
+              </h2>
+            </div>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 20, marginTop: 4
+            }}>
+              {[
+                { icon: <User size={15} />, label: "Full Name", value: p.displayName },
+                { icon: <Mail size={15} />, label: "Email", value: p.email },
+                { icon: <Briefcase size={15} />, label: "Job Title", value: p.jobTitle },
+                { icon: <Building size={15} />, label: "Department", value: p.department },
+                { icon: <MapPin size={15} />, label: "Office", value: p.officeLocation },
+              ].filter((f) => f.value).map((f) => (
+                <div key={f.label} style={{
+                  display: "flex", alignItems: "flex-start", gap: 12,
+                  padding: "14px 16px",
+                  background: "var(--surface-2)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--card-border)"
+                }}>
+                  <span style={{ color: "var(--accent)", marginTop: 1, flexShrink: 0 }}>{f.icon}</span>
+                  <div>
+                    <div className="muted" style={{ fontSize: "0.72rem", marginBottom: 3 }}>{f.label}</div>
+                    <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{f.value}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
