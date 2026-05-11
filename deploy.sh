@@ -202,7 +202,7 @@ ok "PostgreSQL ready"
 
 INSTALL_DIR="/opt/demo-monitoring"
 
-step "Cloning repository to $INSTALL_DIR"
+step "Cloning repository (branch: dev / v3.1.1) to $INSTALL_DIR"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   warn "Repository already exists at $INSTALL_DIR — pulling latest changes."
   cd "$INSTALL_DIR"
@@ -210,7 +210,7 @@ if [[ -d "$INSTALL_DIR/.git" ]]; then
   git checkout dev
   git pull origin dev
 else
-  sudo git clone https://github.com/naitik-create/Demo-checker.git "$INSTALL_DIR"
+  sudo git clone -b dev https://github.com/naitik-create/Demo-checker.git "$INSTALL_DIR"
   sudo chown -R "$USER:$USER" "$INSTALL_DIR"
 fi
 ok "Code at $INSTALL_DIR on branch: $(cd $INSTALL_DIR && git branch --show-current)"
