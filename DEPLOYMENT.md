@@ -1,8 +1,8 @@
-# Deployment Guide — Ubuntu 22.04 Server
+# Deployment Guide — Ubuntu 24.04 Server
 ## Demo Monitoring AI System · v3.1.1
 
 **Document Date:** 2026-05-11  
-**Target OS:** Ubuntu 22.04.2 LTS  
+**Target OS:** Ubuntu 24.04 LTS  
 **Access:** Internal network (all team members on the same network can use the app)
 
 ---
@@ -69,7 +69,7 @@ Only port **80** needs to be open to the network. All other ports are internal.
 ## 2. Prerequisites
 
 **On the Ubuntu server, you need:**
-- Ubuntu 22.04.2 LTS (fresh install or existing)
+- Ubuntu 24.04 LTS (fresh install or existing)
 - SSH access with `sudo` privileges
 - Internet access (to install packages and call Anthropic/Microsoft APIs)
 - Server IP address on your network (e.g. `10.20.40.x`)
@@ -89,7 +89,7 @@ SSH into the Ubuntu server and run:
 sudo apt update && sudo apt upgrade -y
 
 # Prerequisites
-sudo apt install -y curl software-properties-common apt-transport-https ca-certificates
+sudo apt install -y curl ca-certificates
 
 # Node.js 20 (LTS)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -100,10 +100,8 @@ node -v    # should print v20.x.x
 npm -v     # should print 10.x.x
 
 # Python 3.11
-# Ubuntu 22.04 ships with Python 3.10 — 3.11 requires the deadsnakes PPA
-sudo add-apt-repository ppa:deadsnakes/ppa -y
-sudo apt update
-sudo apt install -y python3.11 python3.11-venv python3.11-distutils
+# Ubuntu 24.04 ships Python 3.12 as default — 3.11 is in the standard repos
+sudo apt install -y python3.11 python3.11-venv
 
 # Verify
 python3.11 --version   # should print Python 3.11.x

@@ -1,8 +1,8 @@
 #!/bin/bash
 # =============================================================================
-#  Demo Monitoring AI System — Ubuntu 22.04 Server Setup Script
+#  Demo Monitoring AI System — Ubuntu 24.04 Server Setup Script
 #  Version: 3.1.1
-#  Run this once on a fresh Ubuntu 22.04 LTS server as a sudo-capable user.
+#  Run this once on a fresh Ubuntu 24.04 LTS server as a sudo-capable user.
 #  Usage:  chmod +x deploy.sh && ./deploy.sh
 # =============================================================================
 
@@ -32,7 +32,7 @@ echo "║        Demo Monitoring AI System — Server Setup v3.1.1       ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 echo "This script will install and configure everything needed to run"
-echo "the Demo Monitoring AI System on this Ubuntu 22.04 server."
+echo "the Demo Monitoring AI System on this Ubuntu 24.04 server."
 echo ""
 warn "Run this as a user with sudo privileges (NOT as root)."
 echo ""
@@ -104,9 +104,9 @@ step "Updating system packages"
 sudo apt-get update -qq && sudo apt-get upgrade -y -qq
 ok "System packages updated"
 
-# --- Prerequisites for adding PPAs and downloading ---
-step "Installing prerequisites (curl, software-properties-common)"
-sudo apt-get install -y -qq curl software-properties-common apt-transport-https ca-certificates
+# --- Prerequisites ---
+step "Installing prerequisites (curl, ca-certificates)"
+sudo apt-get install -y -qq curl ca-certificates
 ok "Prerequisites installed"
 
 # --- Node.js 20 ---
@@ -120,15 +120,12 @@ else
 fi
 
 # --- Python 3.11 ---
-# Ubuntu 22.04 ships with Python 3.10 by default.
-# Python 3.11 requires the deadsnakes PPA.
-step "Installing Python 3.11 (via deadsnakes PPA)"
+# Ubuntu 24.04 ships Python 3.12 as default but 3.11 is in the default repos.
+step "Installing Python 3.11"
 if python3.11 --version 2>/dev/null | grep -q "3.11"; then
   ok "Python 3.11 already installed ($(python3.11 --version))"
 else
-  sudo add-apt-repository ppa:deadsnakes/ppa -y
-  sudo apt-get update -qq
-  sudo apt-get install -y -qq python3.11 python3.11-venv python3.11-distutils
+  sudo apt-get install -y -qq python3.11 python3.11-venv
   ok "Python 3.11 installed: $(python3.11 --version)"
 fi
 
