@@ -10,6 +10,7 @@ export const User = sequelize.define(
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     password: { type: DataTypes.STRING, allowNull: true },
     role: { type: DataTypes.ENUM("admin", "consultant", "manager"), defaultValue: "consultant", allowNull: false },
+    approvalStatus: { type: DataTypes.ENUM("approved", "pending", "rejected"), defaultValue: "approved", allowNull: false },
     avatarUrl: { type: DataTypes.STRING, allowNull: true },
 
     msTenantId: { type: DataTypes.STRING, allowNull: true },

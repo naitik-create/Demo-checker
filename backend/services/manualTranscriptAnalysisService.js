@@ -5,11 +5,19 @@ function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
 async function analyzeWithAiService(transcriptText) {
   const baseUrl = process.env.AI_SERVICE_URL || "http://localhost:7000";
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/analyze`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcript: transcriptText })
-  });
+  const url = `${baseUrl.replace(/\/$/, "")}/analyze`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcript: transcriptText })
+    });
+  } catch (networkErr) {
+    const err = new Error(`AI service is not reachable at ${url}. Please start the Python AI service and try again.`);
+    err.status = 503;
+    throw err;
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(json?.error || "AI service analysis failed");
@@ -20,24 +28,52 @@ async function analyzeWithAiService(transcriptText) {
 }
 
 function scoreFromAnalysis(analysis) {
-  const sentiment = analysis?.sentiment || "neutral";
-  const questionsCount = Number(analysis?.questionsCount || 0);
-  const prosCount = Array.isArray(analysis?.pros) ? analysis.pros.length : 0;
-  const consCount = Array.isArray(analysis?.cons) ? analysis.cons.length : 0;
-  const tipsCount = Array.isArray(analysis?.tips) ? analysis.tips.length : 0;
-  const summary = String(analysis?.summary || "");
-  const evalText = String(analysis?.demoQualityEvaluation || "");
-  const hasNextSteps = /next\s+step|follow[-\s]?up|send\s+(a\s+)?proposal|pilot|poc|trial|timeline|implementation/i.test(`${summary}\n${evalText}`);
-  const hasPricing = /pricing|price|cost|budget|roi|expensive/i.test(`${summary}\n${evalText}`);
-  const hasObjections = /concern|risk|security|compliance|migration|alternative|competitor|unclear/i.test(`${summary}\n${evalText}`);
+  const kpis = analysis?.structuredDetails || {};
+  const risks = analysis?.riskFlags || {};
 
-  return calculateDemoScores({
-    communicationScore: clamp(10 + (sentiment === "positive" ? 5 : sentiment === "negative" ? -2 : 2) + clamp(prosCount, 0, 6) * 0.8 - clamp(consCount, 0, 6) * 0.4, 0, 20),
-    engagementScore: clamp(8 + clamp(questionsCount, 0, 12) * 0.9 + (hasObjections ? 1.5 : 0), 0, 20),
-    structureScore: clamp(10 + (hasNextSteps ? 5 : 0) + (analysis?.clientName ? 1 : 0) + clamp(tipsCount, 0, 8) * 0.3, 0, 20),
-    technicalScore: clamp(10 + (hasPricing ? 1.5 : 0) + (hasObjections ? 2 : 0), 0, 20),
-    qaScore: clamp(7 + clamp(questionsCount, 0, 14) * 0.85 + (consCount > 3 ? 1 : 0), 0, 20)
-  });
+  const getKPI = (name, weight) => (Number(kpis[name]?.score_1_to_5 || 1) * weight);
+
+  const discoveryScore = getKPI("Pain identification", 5) +
+                       getKPI("Current infra and state mapping", 3) +
+                       getKPI("Stakeholder mapping", 4) +
+                       getKPI("Competition identification", 3);
+
+  const rapportScore = getKPI("Agenda setting", 3) +
+                     getKPI("Personalisation", 3) +
+                     getKPI("Active listening signals", 4) +
+                     getKPI("Talk-to-listen ratio", 4);
+
+  const demoScore = getKPI("Relevance of demo flow", 5) +
+                  getKPI("Story-based narrative", 4) +
+                  getKPI("Value articulation", 5) +
+                  getKPI("Handling technical Qs", 3);
+
+  const objectionsScore = getKPI("Objection recognition", 4) +
+                        getKPI("Resolution quality", 4) +
+                        getKPI("Competitor handling", 3) +
+                        getKPI("Price / ROI discussion", 3);
+
+  const engagementScore = getKPI("Questions asked by prospect", 4) +
+                        getKPI("Use case confirmation", 5) +
+                        getKPI("Sentiment tone", 3) +
+                        getKPI("Internal mention", 4);
+
+  const closeScore = getKPI("Clear next step set", 5) +
+                   getKPI("Timeline established", 4) +
+                   getKPI("Mutual action plan", 4);
+
+  const riskCount = Object.values(risks).filter(r => r.present_boolean === true).length;
+  const riskDeduction = riskCount * 5;
+
+  return {
+    discoveryScore,
+    rapportScore,
+    demoScore,
+    objectionsScore,
+    engagementScore,
+    closeScore,
+    riskDeduction
+  };
 }
 
 export async function runManualTranscriptAnalysis({ meetingId, transcriptText, productName = "" }) {
@@ -58,7 +94,9 @@ export async function runManualTranscriptAnalysis({ meetingId, transcriptText, p
     questionsDetected: Array.isArray(analysis.questionsDetected) ? analysis.questionsDetected : [],
     questionsCount: Number(analysis.questionsCount || 0),
     qaPairs: Array.isArray(analysis.qaPairs) ? analysis.qaPairs : [],
-    demoQualityEvaluation: analysis.demoQualityEvaluation || ""
+    demoQualityEvaluation: analysis.demoQualityEvaluation || "",
+    structuredDetails: analysis.structuredDetails || {},
+    riskFlags: analysis.riskFlags || {}
   }, { returning: true });
 
   const [scoreDoc] = await DemoScore.upsert({ meetingId, ...scores }, { returning: true });

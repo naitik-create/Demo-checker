@@ -79,7 +79,8 @@ export default function MeetingReportPage() {
     report: null,
     fetchingTranscript: false,
     transcriptError: "",
-    downloadingPdf: false
+    downloadingPdf: false,
+    showTranscript: false
   });
 
   useEffect(() => {
@@ -242,505 +243,574 @@ export default function MeetingReportPage() {
     }
   }
 
-  function renderKpiShowcase() {
-    if (!kpiAssessment) return null;
+  async function handleReAnalyze() {
+    if (!r) return;
+    if (!window.confirm("This will overwrite existing scores and reasoning using the latest AI prompt. Continue?")) return;
 
-    const scoredDimensions = kpiAssessment.dimensions.filter((dimension) => !dimension.risk);
-    const riskDimension = kpiAssessment.dimensions.find((dimension) => dimension.risk);
-    const scoredKpis = scoredDimensions.flatMap((dimension) =>
-      dimension.kpis.map((kpi) => ({ ...kpi, dimensionLabel: dimension.label, dimensionTone: dimension.tone }))
+    setState((s) => ({ ...s, loading: true, error: "" }));
+    try {
+      const res = await apiFetch(`/api/meetings/${meetingId}/re-analyze`, {
+        method: "POST",
+        auth: true
+      });
+      if (res.ok) {
+        // Reload report data
+        const refreshed = await apiFetch(`/api/meetings/report/${meetingId}`, { auth: true });
+        setState((s) => ({ ...s, loading: false, report: refreshed, error: "" }));
+        alert("Re-analysis completed successfully!");
+      } else {
+        throw new Error(res.message || "Re-analysis failed");
+      }
+    } catch (err) {
+      setState((s) => ({ ...s, loading: false, error: err?.message || "Failed to re-analyze transcript" }));
+    }
+  }
+
+  // Parse dimension-prefixed items like "Discovery: ..." into { dim, text }
+  function parseDimPrefixed(items) {
+    const dimNames = ["Discovery", "Rapport", "Demo", "Objections", "Engagement", "Close", "Risks"];
+    return (items || []).map((item) => {
+      const s = String(item || "").trim();
+      for (const d of dimNames) {
+        if (s.toLowerCase().startsWith(d.toLowerCase() + ":")) {
+          return { dim: d, text: s.slice(d.length + 1).trim() };
+        }
+      }
+      return { dim: "General", text: s };
+    });
+  }
+
+  function renderScoreBasis() {
+    if (!kpiAssessment) return null;
+    const scoredDims = kpiAssessment.dimensions.filter((d) => !d.risk);
+    return (
+      <div className="card">
+        <div className="card__head">
+          <div>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800 }}>How This Score Was Calculated</h2>
+            <p className="muted" style={{ marginTop: 4, fontSize: "0.85rem" }}>
+              Each dimension contributes weighted KPI points to the final score
+            </p>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: "1.8rem", fontWeight: 900, color: "var(--accent)" }}>{kpiAssessment.finalScore}/100</div>
+            <div className="muted" style={{ fontSize: "0.75rem" }}>Final Score</div>
+          </div>
+        </div>
+
+        {/* Dimension contribution table */}
+        <div style={{ overflowX: "auto", marginTop: 8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid var(--card-border)" }}>
+                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600 }}>Dimension</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 600 }}>Earned</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 600 }}>Max</th>
+                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600, minWidth: 140 }}>Performance</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 600 }}>%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scoredDims.map((dim) => {
+                const pct = Math.round((dim.weightedScore / dim.weightMax) * 100);
+                const color = pct >= 70 ? "#4ade80" : pct >= 45 ? "#fbbf24" : "#f87171";
+                return (
+                  <tr key={dim.id} style={{ borderBottom: "1px solid var(--card-border)" }}>
+                    <td style={{ padding: "10px 12px" }}>
+                      <span style={{ fontWeight: 700, color: dim.tone }}>{dim.label}</span>
+                      <div style={{ fontSize: "0.73rem", color: "var(--text-muted)" }}>{dim.description}</div>
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: dim.tone }}>{dim.weightedScore}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--text-muted)" }}>{dim.weightMax}</td>
+                    <td style={{ padding: "10px 12px" }}>
+                      <div style={{ height: 6, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden", minWidth: 100 }}>
+                        <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: color, transition: "width 0.5s" }} />
+                      </div>
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color }}>{pct}%</td>
+                  </tr>
+                );
+              })}
+              {/* Risk deduction row */}
+              <tr style={{ borderBottom: "1px solid var(--card-border)", background: kpiAssessment.riskDeductionPoints > 0 ? "rgba(239,68,68,0.05)" : "transparent" }}>
+                <td style={{ padding: "10px 12px" }}>
+                  <span style={{ fontWeight: 700, color: "#ef4444" }}>Risk Deductions</span>
+                  <div style={{ fontSize: "0.73rem", color: "var(--text-muted)" }}>{kpiAssessment.riskCount} flag(s) × −5 pts each</div>
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#ef4444" }}>−{kpiAssessment.riskDeductionPoints}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--text-muted)" }}>0</td>
+                <td style={{ padding: "10px 12px" }} />
+                <td style={{ padding: "10px 12px", textAlign: "right", color: "#ef4444" }}>{kpiAssessment.riskDeductionPoints > 0 ? `−${kpiAssessment.riskDeductionPoints}` : "0"}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "2px solid var(--card-border)" }}>
+                <td style={{ padding: "10px 12px", fontWeight: 800 }}>Total</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 900, color: "var(--accent)", fontSize: "1.05rem" }}>{kpiAssessment.adjustedScore}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 700 }}>445</td>
+                <td style={{ padding: "10px 12px" }} />
+                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 900, color: "var(--accent)", fontSize: "1.05rem" }}>{kpiAssessment.finalScore}%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div style={{ marginTop: 12, fontSize: "0.8rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px", border: "1px solid var(--card-border)" }}>
+          Formula: ({kpiAssessment.weightedScore} weighted pts − {kpiAssessment.riskDeductionPoints} risk deduction) ÷ 445 × 100 = <strong style={{ color: "var(--text-main)" }}>{kpiAssessment.finalScore}/100</strong>
+        </div>
+      </div>
     );
-    const topStrengths = [...scoredKpis]
-      .sort((a, b) => b.score * b.priority - a.score * a.priority)
-      .filter((kpi) => kpi.score >= 4)
-      .slice(0, 4);
-    const topGaps = [...scoredKpis]
-      .sort((a, b) => a.score * a.priority - b.score * b.priority)
-      .filter((kpi) => kpi.score <= 3)
-      .slice(0, 4);
-    const activeRisks = riskDimension?.kpis.filter((kpi) => kpi.present) || [];
+  }
+
+  function renderCriticalGaps() {
+    if (!kpiAssessment) return null;
+    const scoredDims = kpiAssessment.dimensions.filter((d) => !d.risk);
+
+    const allGapKpis = [];
+    scoredDims.forEach((dim) => {
+      dim.kpis.filter((k) => k.score <= 3).forEach((kpi) => {
+        allGapKpis.push({ ...kpi, dimLabel: dim.label, dimTone: dim.tone });
+      });
+    });
+
+    allGapKpis.sort((a, b) => a.score - b.score);
+
+    if (allGapKpis.length === 0) return (
+      <div className="card" style={{ borderLeft: "4px solid #4ade80" }}>
+        <h2 style={{ color: "#4ade80" }}>No Critical Gaps</h2>
+        <p className="muted">All KPIs scored above the improvement threshold.</p>
+      </div>
+    );
+
+    const criticalKpis = allGapKpis.filter((k) => k.score <= 1);
+    const weakKpis    = allGapKpis.filter((k) => k.score === 2);
+    const partialKpis = allGapKpis.filter((k) => k.score === 3);
+
+    const severityGroups = [
+      { label: "Missing", sublabel: "Score 1 — Not attempted at all", color: "#ef4444", bg: "rgba(239,68,68,0.07)", border: "rgba(239,68,68,0.25)", kpis: criticalKpis },
+      { label: "Weak",    sublabel: "Score 2 — Attempted but ineffective", color: "#f97316", bg: "rgba(249,115,22,0.07)", border: "rgba(249,115,22,0.25)", kpis: weakKpis },
+      { label: "Partial", sublabel: "Score 3 — Partially done, key elements missed", color: "#fbbf24", bg: "rgba(251,191,36,0.07)", border: "rgba(251,191,36,0.2)", kpis: partialKpis },
+    ].filter((g) => g.kpis.length > 0);
 
     return (
-      <>
-        <div
-          className="card"
-          style={{
-            background: "linear-gradient(135deg, rgba(37,99,235,0.14), rgba(124,58,237,0.09) 55%, rgba(15,118,110,0.08))"
-          }}
-        >
-          <div className="card__head">
-            <div>
-              <h2>{kpiAssessment.productSummary.title}</h2>
-              <div className="muted" style={{ marginTop: 6 }}>
-                {kpiAssessment.productSummary.summary}
-              </div>
-            </div>
-            <span className="badge badge--purple">{kpiAssessment.productSummary.family}</span>
+      <div className="card">
+        {/* Header */}
+        <div className="card__head" style={{ marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#f97316" }}>Critical Gaps & What Was Missing</h2>
+            <p className="muted" style={{ marginTop: 4, fontSize: "0.85rem" }}>KPIs scoring 3 or below — grouped by severity</p>
           </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 18 }}>
-            <div className="kpi kpi--blue">
-              <div className="kpi__label">Scored Dimensions</div>
-              <div className="kpi__value kpi__value--blue">{kpiAssessment.positiveDimensionCount}</div>
-              <div className="kpi__hint">Discovery, Rapport, Demo, Objections, Engagement, Close</div>
-            </div>
-            <div className="kpi kpi--purple">
-              <div className="kpi__label">Scored KPIs</div>
-              <div className="kpi__value kpi__value--purple">{kpiAssessment.scoredKpis}</div>
-              <div className="kpi__hint">Each scored on a 1 to 5 scale</div>
-            </div>
-            <div className="kpi kpi--green">
-              <div className="kpi__label">Weighted Score</div>
-              <div className="kpi__value kpi__value--green">{kpiAssessment.weightedScore}</div>
-              <div className="kpi__hint">Out of {kpiAssessment.weightedMax} possible weighted points</div>
-            </div>
-            <div className={`kpi ${kpiAssessment.riskCount ? "kpi--orange" : "kpi--green"}`}>
-              <div className="kpi__label">Risk Flags</div>
-              <div className="kpi__value" style={{ color: kpiAssessment.riskCount ? "var(--orange)" : "var(--green)" }}>
-                {kpiAssessment.riskCount}
-              </div>
-              <div className="kpi__hint">Each active risk deducts 5 points</div>
-            </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {criticalKpis.length > 0 && <span style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 99, padding: "3px 12px", fontSize: "0.78rem", fontWeight: 700 }}>{criticalKpis.length} Missing</span>}
+            {weakKpis.length > 0    && <span style={{ background: "rgba(249,115,22,0.15)", color: "#f97316", border: "1px solid rgba(249,115,22,0.3)", borderRadius: 99, padding: "3px 12px", fontSize: "0.78rem", fontWeight: 700 }}>{weakKpis.length} Weak</span>}
+            {partialKpis.length > 0 && <span style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 99, padding: "3px 12px", fontSize: "0.78rem", fontWeight: 700 }}>{partialKpis.length} Partial</span>}
           </div>
+        </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 16 }}>
-            <div
-              style={{
-                border: "1px solid var(--card-border)",
-                borderRadius: 18,
-                padding: 18,
-                background: "rgba(255,255,255,0.03)"
-              }}
-            >
-              <div className="muted" style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Final KPI Score
-              </div>
-              <div style={{ display: "flex", alignItems: "end", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
-                <div style={{ fontSize: "3rem", fontWeight: 800, lineHeight: 1 }}>{kpiAssessment.finalScore}/100</div>
-                <KpiPill
-                  color={kpiAssessment.finalScore >= 80 ? "var(--green)" : kpiAssessment.finalScore >= 60 ? "var(--accent)" : "var(--orange)"}
-                  borderColor={kpiAssessment.finalScore >= 80 ? "rgba(5,150,105,0.35)" : kpiAssessment.finalScore >= 60 ? "rgba(37,99,235,0.35)" : "rgba(245,158,11,0.35)"}
-                  background={kpiAssessment.finalScore >= 80 ? "rgba(5,150,105,0.12)" : kpiAssessment.finalScore >= 60 ? "rgba(37,99,235,0.12)" : "rgba(245,158,11,0.12)"}
-                >
-                  {kpiAssessment.finalScore >= 80 ? "Strong Call" : kpiAssessment.finalScore >= 60 ? "Developing Call" : "Needs Coaching"}
-                </KpiPill>
-              </div>
-              <div className="muted" style={{ marginTop: 8, lineHeight: 1.6 }}>
-                Final score formula:
-                {" "}
-                <strong>(Weighted score / {kpiAssessment.weightedMax}) x 100</strong>
-                {" "}
-                minus
-                {" "}
-                <strong>{kpiAssessment.riskCount} x 5</strong>
-                {" "}
-                risk deduction points.
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {severityGroups.map((group) => (
+            <div key={group.label}>
+              {/* Severity header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: group.color, flexShrink: 0 }} />
+                <span style={{ fontWeight: 800, color: group.color, fontSize: "0.95rem" }}>{group.label}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{group.sublabel}</span>
+                <div style={{ flex: 1, height: 1, background: group.border }} />
               </div>
 
-              <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
-                <div>
-                  <div className="muted" style={{ marginBottom: 6 }}>Positive performance index</div>
-                  <div style={{ height: 12, borderRadius: 999, background: "var(--surface-2)", overflow: "hidden" }}>
-                    <div
-                      style={{
-                        width: `${kpiAssessment.weightedPerformance}%`,
-                        height: "100%",
-                        borderRadius: 999,
-                        background: "linear-gradient(90deg, #2563eb, #7c3aed)"
-                      }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="muted" style={{ marginBottom: 6 }}>Risk deduction impact</div>
-                  <div style={{ height: 12, borderRadius: 999, background: "var(--surface-2)", overflow: "hidden" }}>
-                    <div
-                      style={{
-                        width: `${Math.min(100, kpiAssessment.riskDeductionPoints)}%`,
-                        height: "100%",
-                        borderRadius: 999,
-                        background: "linear-gradient(90deg, #f59e0b, #dc2626)"
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+              {/* KPI cards grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                {group.kpis.map((kpi) => (
+                  <div key={kpi.id} style={{ borderRadius: 12, border: "1px solid " + group.border, background: group.bg, overflow: "hidden" }}>
+                    {/* Card top strip */}
+                    <div style={{ height: 3, background: "linear-gradient(90deg, " + group.color + "80, " + group.color + ")" }} />
+                    <div style={{ padding: "12px 14px" }}>
+                      {/* Dimension tag + score */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 700, color: kpi.dimTone, background: kpi.dimTone + "18", border: "1px solid " + kpi.dimTone + "35", borderRadius: 99, padding: "2px 8px" }}>
+                          {kpi.dimLabel}
+                        </span>
+                        {/* Score dots */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {[1,2,3,4,5].map((dot) => (
+                            <div key={dot} style={{ width: 7, height: 7, borderRadius: "50%", background: dot <= kpi.score ? group.color : "rgba(255,255,255,0.12)" }} />
+                          ))}
+                          <span style={{ marginLeft: 4, fontSize: "0.75rem", fontWeight: 800, color: group.color }}>{kpi.score}/5</span>
+                        </div>
+                      </div>
 
-            <div
-              style={{
-                border: "1px solid var(--card-border)",
-                borderRadius: 18,
-                padding: 18,
-                background: "rgba(255,255,255,0.03)"
-              }}
-            >
-              <div className="muted" style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-                Workbook Rating Guide
-              </div>
-              <div style={{ display: "grid", gap: 8 }}>
-                {[
-                  { score: 5, label: "Excellent", note: "Fully demonstrated, proactively and with depth" },
-                  { score: 4, label: "Good", note: "Clearly addressed with minor gaps" },
-                  { score: 3, label: "Average", note: "Partially covered; some key points missed" },
-                  { score: 2, label: "Below avg", note: "Attempted but largely ineffective" },
-                  { score: 1, label: "Poor", note: "Not attempted or completely ineffective" }
-                ].map((row) => (
-                  <div
-                    key={row.score}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "44px 92px 1fr",
-                      gap: 10,
-                      alignItems: "center",
-                      padding: "8px 10px",
-                      borderRadius: 12,
-                      background: "var(--surface-1)",
-                      border: "1px solid var(--card-border)"
-                    }}
-                  >
-                    <div style={{ fontWeight: 800, color: scoreBand(row.score).color }}>{row.score}</div>
-                    <div style={{ fontWeight: 700 }}>{row.label}</div>
-                    <div className="muted" style={{ fontSize: "0.84rem" }}>{row.note}</div>
+                      {/* KPI name */}
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: 8, lineHeight: 1.3 }}>{kpi.label}</div>
+
+                      {/* Reason */}
+                      {kpi.reason && kpi.reason !== "Refer to transcript." && (
+                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.55, marginBottom: 8 }}>
+                          <span style={{ color: group.color, fontWeight: 600 }}>Gap: </span>{kpi.reason}
+                        </div>
+                      )}
+
+                      {/* Evidence quote — only for score 2/3 and with cleaned evidence */}
+                      {kpi.score >= 2 && kpi.evidence && kpi.evidence !== "N/A" && kpi.evidence !== "None" && !(/meeting recording/i).test(kpi.evidence) && !(/started transc/i).test(kpi.evidence) && !"0123456789".includes(kpi.evidence.trim()[0]) && kpi.evidence.trim().length > 15 && (
+                        <div style={{ fontSize: "0.72rem", fontStyle: "italic", color: "var(--text-muted)", borderLeft: "2px solid " + group.color + "50", paddingLeft: 8, lineHeight: 1.5, opacity: 0.85 }}>
+                          &ldquo;{kpi.evidence}&rdquo;
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderImprovementPlan() {
+    if (!kpiAssessment) return null;
+    const scoredDims = kpiAssessment.dimensions.filter((d) => !d.risk);
+
+    // Parse Claude's cons and tips by dimension
+    const parsedCons = parseDimPrefixed(r?.cons);
+    const parsedTips = parseDimPrefixed(r?.tips);
+
+    // Sort dimensions by performance (worst first)
+    const dimsSorted = [...scoredDims].sort((a, b) => a.percentage - b.percentage);
+
+    // Only show dimensions that have at least one KPI < 5 or a cons/tip entry
+    const actionableDims = dimsSorted.filter((dim) => {
+      const hasWeakKpi = dim.kpis.some((k) => k.score < 5);
+      const hasCons = parsedCons.some((c) => c.dim.toLowerCase() === dim.label.toLowerCase());
+      const hasTips = parsedTips.some((t) => t.dim.toLowerCase() === dim.label.toLowerCase());
+      return hasWeakKpi || hasCons || hasTips;
+    });
+
+    if (actionableDims.length === 0) return null;
+
+    const pctColor = (pct) => pct >= 70 ? "#4ade80" : pct >= 45 ? "#fbbf24" : "#f87171";
+
+    return (
+      <div className="card">
+        <div className="card__head">
+          <div>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#38bdf8" }}>Improvement Plan</h2>
+            <p className="muted" style={{ marginTop: 4, fontSize: "0.85rem" }}>
+              Dimension-by-dimension coaching plan — lowest performing first
+            </p>
           </div>
         </div>
 
-        <div className="grid grid--2">
-          <div className="card">
-            <div className="card__head">
-              <h2>{kpiAssessment.productProfile.label} Manager Lens</h2>
-              <span className="muted">What a strong Motadata demo should prove</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 12 }}>
+          {actionableDims.map((dim) => {
+            const dimCons = parsedCons.filter((c) => c.dim.toLowerCase() === dim.label.toLowerCase());
+            const dimTips = parsedTips.filter((t) => t.dim.toLowerCase() === dim.label.toLowerCase());
+            const weakKpis = dim.kpis.filter((k) => k.score <= 3).sort((a, b) => a.score - b.score);
+            const pct = dim.percentage;
+            const col = pctColor(pct);
+
+            return (
+              <div key={dim.id} style={{ borderRadius: 12, border: `1px solid ${dim.tone}30`, overflow: "hidden" }}>
+                {/* Dimension header */}
+                <div style={{ padding: "12px 16px", background: `${dim.tone}10`, borderLeft: `4px solid ${dim.tone}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div>
+                    <span style={{ fontWeight: 800, fontSize: "0.98rem", color: dim.tone }}>{dim.label}</span>
+                    <span className="muted" style={{ marginLeft: 8, fontSize: "0.78rem" }}>{dim.description}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ height: 6, width: 80, borderRadius: 99, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: col }} />
+                    </div>
+                    <span style={{ fontWeight: 800, color: col, fontSize: "0.85rem" }}>{pct}%</span>
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>({dim.weightedScore}/{dim.weightMax} pts)</span>
+                  </div>
+                </div>
+
+                <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* What went wrong (cons for this dimension) */}
+                  {dimCons.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#f87171", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>What Went Wrong</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+                        {dimCons.map((c, i) => (
+                          <li key={i} style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.55 }}>{c.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* KPI-level gaps */}
+                  {weakKpis.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#fbbf24", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>KPI Gaps in This Dimension</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {weakKpis.map((kpi) => (
+                          <div key={kpi.id} style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid var(--card-border)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                              <span style={{ fontWeight: 700, fontSize: "0.86rem" }}>{kpi.label}</span>
+                              <span style={{ fontSize: "0.72rem", color: kpi.score <= 1 ? "#ef4444" : kpi.score <= 2 ? "#f97316" : "#fbbf24", background: "rgba(255,255,255,0.05)", borderRadius: 99, padding: "1px 8px", border: "1px solid rgba(255,255,255,0.08)", fontWeight: 700 }}>
+                                {kpi.score}/5
+                              </span>
+                            </div>
+                            {kpi.reason && kpi.reason !== "Refer to transcript." && (
+                              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.5 }}>{kpi.reason}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* How to improve (tips for this dimension) */}
+                  {dimTips.length > 0 && (
+                    <div style={{ background: "rgba(56,189,248,0.06)", borderRadius: 8, padding: "12px 14px", border: "1px solid rgba(56,189,248,0.15)" }}>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#38bdf8", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>How to Improve</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {dimTips.map((t, i) => (
+                          <li key={i} style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.6 }}>{t.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* General tips if no dimension-specific ones */}
+                  {dimTips.length === 0 && weakKpis.length > 0 && (
+                    <div style={{ background: "rgba(56,189,248,0.04)", borderRadius: 8, padding: "10px 14px", border: "1px solid rgba(56,189,248,0.12)" }}>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#38bdf8", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Actions</div>
+                      {weakKpis.slice(0, 2).map((kpi) => (
+                        <div key={kpi.id} style={{ fontSize: "0.83rem", color: "var(--text-muted)", marginBottom: 4, lineHeight: 1.5 }}>
+                          • Improve <strong style={{ color: "var(--text-main)" }}>{kpi.label}</strong>: score was {kpi.score}/5 — focus on this in the next call.
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* General (unmatched) tips */}
+          {(() => {
+            const generalTips = parsedTips.filter((t) => t.dim === "General");
+            if (!generalTips.length) return null;
+            return (
+              <div style={{ borderRadius: 12, border: "1px solid rgba(56,189,248,0.2)", overflow: "hidden" }}>
+                <div style={{ padding: "10px 16px", background: "rgba(56,189,248,0.06)", borderLeft: "4px solid #38bdf8" }}>
+                  <span style={{ fontWeight: 800, color: "#38bdf8" }}>Overall Coaching Tips</span>
+                </div>
+                <div style={{ padding: "14px 16px" }}>
+                  <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {generalTips.map((t, i) => (
+                      <li key={i} style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.6 }}>{t.text}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    );
+  }
+
+  function renderKpiShowcase() {
+    if (!kpiAssessment) return null;
+
+    const scoredDimensions = kpiAssessment.dimensions.filter((d) => !d.risk);
+    const riskDimension = kpiAssessment.dimensions.find((d) => d.risk);
+
+    return (
+      <>
+        {/* Authoritative KPI Lens Overview */}
+        <div className="card" style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.08), rgba(124,58,237,0.05))" }}>
+          <div className="card__head">
+            <div>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 800 }}>{kpiAssessment.productSummary.title}</h2>
+              <p className="muted" style={{ marginTop: 4 }}>Authoritative 7-Dimension, 23-KPI Scoring Framework</p>
             </div>
-            <DetailList items={kpiAssessment.productSummary.executiveLens} emptyText="No product lens guidance available." />
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "var(--accent)" }}>{kpiAssessment.finalScore}/100</div>
+              <div className="badge badge--purple">{kpiAssessment.verdict}</div>
+            </div>
           </div>
 
-          <div className="card">
-            <div className="card__head">
-              <h2>Expected Demo Proof Points</h2>
-              <span className="muted">What the manager should expect to see covered</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 20 }}>
+            <div className="kpi kpi--blue">
+              <div className="kpi__label">Weighted Performance</div>
+              <div className="kpi__value">{kpiAssessment.weightedScore} / {kpiAssessment.weightedMax}</div>
+              <div className="kpi__hint">Total of all KPI scores x weights</div>
             </div>
-            <DetailList items={kpiAssessment.productSummary.demoProofPoints} emptyText="No proof-point guide available." />
+            <div className="kpi kpi--orange">
+              <div className="kpi__label">Risk Deductions</div>
+              <div className="kpi__value">-{kpiAssessment.riskDeductionPoints}</div>
+              <div className="kpi__hint">{kpiAssessment.riskCount} flags x 5 points each</div>
+            </div>
+            <div className="kpi kpi--green">
+              <div className="kpi__label">Adjusted Total</div>
+              <div className="kpi__value">{kpiAssessment.adjustedScore}</div>
+              <div className="kpi__hint">Final weighted points before normalization</div>
+            </div>
+          </div>
+
+          <div className="alert" style={{ marginTop: 20, background: "rgba(255,255,255,0.03)", border: "1px solid var(--card-border)" }}>
+            <strong>Calculation Logic:</strong> (({kpiAssessment.weightedScore} - {kpiAssessment.riskDeductionPoints}) / 445) x 100 = <strong>{kpiAssessment.finalScore}%</strong>
           </div>
         </div>
 
-        <div className="grid grid--2">
-          <div className="card">
-            <div className="card__head">
-              <h2>Recommended Discovery Questions</h2>
-              <span className="muted">Questionnaire prompts for this product</span>
-            </div>
-            <DetailList items={kpiAssessment.productSummary.discoveryQuestions} emptyText="No discovery prompts available." />
+        {/* Dimension-wise Breakdown Cards */}
+        <div style={{ marginTop: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <h2 style={{ fontSize: "1.4rem", fontWeight: 800, margin: 0 }}>Detailed Performance Breakdown</h2>
+            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "3px 12px", border: "1px solid var(--card-border)" }}>
+              {scoredDimensions.length} dimensions
+            </span>
           </div>
-
-          <div className="card">
-            <div className="card__head">
-              <h2>What Good Momentum Looks Like</h2>
-              <span className="muted">Buying signals for this product motion</span>
-            </div>
-            <DetailList items={kpiAssessment.productSummary.successSignals} emptyText="No success-signal guide available." />
-          </div>
-        </div>
-
-        <div className="grid grid--2">
-          <div className="card">
-            <div className="card__head">
-              <h2>Top Strengths</h2>
-              <span className="muted">Highest-weighted positives from the call</span>
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {topStrengths.length ? topStrengths.map((kpi) => (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+            {scoredDimensions.map((dim) => {
+              const pct = Math.round((dim.weightedScore / dim.weightMax) * 100);
+              return (
                 <div
-                  key={kpi.id}
+                  key={dim.id}
                   style={{
-                    padding: "12px 14px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(5,150,105,0.24)",
-                    background: "rgba(5,150,105,0.08)"
+                    borderRadius: 16, overflow: "hidden",
+                    border: `1px solid ${dim.tone}28`,
+                    background: "rgba(255,255,255,0.01)",
+                    display: "flex", flexDirection: "column"
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <div style={{ fontWeight: 700 }}>{kpi.label}</div>
-                    <span className="badge badge--green">{kpi.score}/5 · x{kpi.priority}</span>
-                  </div>
-                  <div className="muted" style={{ marginTop: 6, lineHeight: 1.55 }}>{kpi.covered?.[0] || kpi.rationale}</div>
-                </div>
-              )) : <div className="muted">No strong KPI strengths detected yet.</div>}
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card__head">
-              <h2>Top Coaching Priorities</h2>
-              <span className="muted">Areas that most impacted the score</span>
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {topGaps.length ? topGaps.map((kpi) => (
-                <div
-                  key={kpi.id}
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(245,158,11,0.24)",
-                    background: "rgba(245,158,11,0.08)"
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <div style={{ fontWeight: 700 }}>{kpi.label}</div>
-                    <span className="badge badge--amber">{kpi.score}/5 · x{kpi.priority}</span>
-                  </div>
-                  <div className="muted" style={{ marginTop: 6, lineHeight: 1.55 }}>{kpi.missing?.[0] || kpi.improper}</div>
-                </div>
-              )) : <div className="muted">No major KPI coaching gaps detected.</div>}
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card__head">
-            <h2>Dimension Scorecards</h2>
-            <span className="muted">Workbook-style category summary before the detailed rubric</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
-            {scoredDimensions.map((dimension) => (
-              <div
-                key={dimension.id}
-                style={{
-                  border: "1px solid var(--card-border)",
-                  borderRadius: 18,
-                  padding: 16,
-                  background: "linear-gradient(180deg, var(--surface-1), transparent)"
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
-                  <div>
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        background: `${dimension.tone}20`,
-                        color: dimension.tone,
-                        fontWeight: 700,
-                        fontSize: "0.82rem"
-                      }}
-                    >
-                      {dimension.label}
-                    </div>
-                    <div style={{ fontWeight: 700, marginTop: 10 }}>{dimension.subtitle}</div>
-                    <div className="muted" style={{ marginTop: 4, lineHeight: 1.5 }}>{dimension.description}</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "2rem", fontWeight: 800 }}>{dimension.averageScore}/5</div>
-                    <div className="muted" style={{ fontSize: "0.82rem" }}>{dimension.weightedScore}/{dimension.weightedMax}</div>
-                  </div>
-                </div>
-                <div style={{ height: 10, borderRadius: 999, background: "var(--surface-2)", overflow: "hidden", marginTop: 14 }}>
-                  <div
-                    style={{
-                      width: `${(dimension.weightedScore / Math.max(1, dimension.weightedMax)) * 100}%`,
-                      height: "100%",
-                      borderRadius: 999,
-                      background: `linear-gradient(90deg, ${dimension.tone}, ${dimension.tone}aa)`
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card__head">
-            <h2>Detailed KPI Rubric</h2>
-            <span className="muted">Each KPI scored on the workbook-style 1 to 5 framework with product-specific guidance, evidence, and discovery prompts</span>
-          </div>
-          <div style={{ display: "grid", gap: 18 }}>
-            {scoredDimensions.map((dimension) => (
-              <div
-                key={dimension.id}
-                style={{
-                  border: "1px solid var(--card-border)",
-                  borderRadius: 20,
-                  padding: 18,
-                  background: "linear-gradient(180deg, var(--surface-1), transparent)"
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: "1rem" }}>{dimension.label}</div>
-                    <div className="muted" style={{ marginTop: 4 }}>{dimension.subtitle} · {dimension.description}</div>
-                  </div>
-                  <span className="badge badge--blue">{dimension.averageScore}/5 average</span>
-                </div>
-
-                <div style={{ display: "grid", gap: 12 }}>
-                  {dimension.kpis.map((kpi) => {
-                    const band = scoreBand(kpi.score);
-                    return (
-                      <div
-                        key={kpi.id}
-                        style={{
-                          border: "1px solid var(--card-border)",
-                          borderRadius: 16,
-                          padding: 16,
-                          background: "rgba(255,255,255,0.02)"
-                        }}
-                      >
-                        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) auto auto", gap: 12, alignItems: "start" }}>
-                          <div>
-                            <div style={{ fontWeight: 700 }}>{kpi.label}</div>
-                            <div className="muted" style={{ marginTop: 4 }}>{kpi.detail}</div>
-                          </div>
-                          <span className="badge badge--purple">x{kpi.priority}</span>
-                          <KpiPill
-                            color={band.color}
-                            borderColor={`${band.color}55`}
-                            background={`${band.color}20`}
-                          >
-                            {kpi.score}/5 · {band.label}
-                          </KpiPill>
-                        </div>
-
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 14 }}>
-                          <div
-                            style={{
-                              padding: "12px 12px",
-                              borderRadius: 12,
-                              border: "1px solid rgba(37,99,235,0.18)",
-                              background: "rgba(37,99,235,0.08)"
-                            }}
-                          >
-                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Why this score</div>
-                            <div className="muted" style={{ lineHeight: 1.55 }}>{kpi.rationale}</div>
-                            {kpi.guide ? (
-                              <div className="muted" style={{ marginTop: 8, lineHeight: 1.5 }}>
-                                <strong>{kpi.guide.label}:</strong> {kpi.guide.definition}
-                                <br />
-                                <strong>Action:</strong> {kpi.guide.action}
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div
-                            style={{
-                              padding: "12px 12px",
-                              borderRadius: 12,
-                              border: "1px solid rgba(5,150,105,0.18)",
-                              background: "rgba(5,150,105,0.08)"
-                            }}
-                          >
-                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Proper standard</div>
-                            <div className="muted" style={{ lineHeight: 1.55 }}>{kpi.proper}</div>
-                            {Array.isArray(kpi.covered) && kpi.covered.length ? (
-                              <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-                                {kpi.covered.slice(0, 3).map((item, index) => (
-                                  <div key={index} className="muted" style={{ lineHeight: 1.5 }}>
-                                    Covered: {item}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div
-                            style={{
-                              padding: "12px 12px",
-                              borderRadius: 12,
-                              border: "1px solid rgba(245,158,11,0.18)",
-                              background: "rgba(245,158,11,0.08)"
-                            }}
-                          >
-                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Not proper / gap</div>
-                            <div className="muted" style={{ lineHeight: 1.55 }}>{kpi.improper}</div>
-                            {Array.isArray(kpi.missing) && kpi.missing.length ? (
-                              <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-                                {kpi.missing.slice(0, 3).map((item, index) => (
-                                  <div key={index} className="muted" style={{ lineHeight: 1.5 }}>
-                                    Gap: {item}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
-                            {Array.isArray(kpi.questionnaire) && kpi.questionnaire.length ? (
-                              <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-                                {kpi.questionnaire.slice(0, 2).map((item, index) => (
-                                  <div key={index} className="muted" style={{ lineHeight: 1.5 }}>
-                                    Manager check: {item}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
+                  {/* Dimension header */}
+                  <div style={{
+                    padding: "14px 18px",
+                    background: `${dim.tone}12`,
+                    borderBottom: `1px solid ${dim.tone}22`,
+                    borderLeft: `4px solid ${dim.tone}`
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: "1rem", color: dim.tone }}>{dim.label}</div>
+                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {dim.description}
                         </div>
                       </div>
-                    );
-                  })}
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: "1.3rem", fontWeight: 900, color: dim.tone, lineHeight: 1 }}>
+                          {dim.weightedScore}<span style={{ fontSize: "0.78rem", opacity: 0.6, fontWeight: 600 }}>/{dim.weightMax}</span>
+                        </div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 1 }}>pts</div>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ marginTop: 10, height: 5, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", borderRadius: 99, width: `${pct}%`,
+                        background: `linear-gradient(90deg, ${dim.tone}80, ${dim.tone})`,
+                        transition: "width 0.6s ease"
+                      }} />
+                    </div>
+                    <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4, textAlign: "right" }}>{pct}%</div>
+                  </div>
+
+                  {/* KPI rows */}
+                  <div style={{ flex: 1 }}>
+                    {dim.kpis.map((kpi, kIdx) => {
+                      const band = scoreBand(kpi.score);
+                      return (
+                        <div
+                          key={kpi.id}
+                          style={{
+                            padding: "12px 18px",
+                            borderBottom: kIdx === dim.kpis.length - 1 ? "none" : "1px solid var(--card-border)"
+                          }}
+                        >
+                          {/* KPI header row */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                              <span style={{ fontWeight: 700, fontSize: "0.88rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</span>
+                              <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.05)", borderRadius: 20, padding: "1px 7px", whiteSpace: "nowrap", flexShrink: 0 }}>Wt:{kpi.weight}</span>
+                            </div>
+                            <span style={{
+                              padding: "3px 10px", borderRadius: 99, fontWeight: 800, fontSize: "0.8rem",
+                              background: band.color + "20", color: band.color,
+                              border: `1px solid ${band.color}40`, whiteSpace: "nowrap", flexShrink: 0
+                            }}>
+                              {kpi.score}/5
+                            </span>
+                          </div>
+                          {/* Score mini-bar */}
+                          <div style={{ height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)", marginBottom: 8, overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: 99, width: `${(kpi.score / 5) * 100}%`, background: band.color, opacity: 0.7 }} />
+                          </div>
+                          {/* Reason */}
+                          <div style={{ fontSize: "0.8rem", lineHeight: 1.5, color: "var(--text-muted)", marginBottom: kpi.evidence && kpi.evidence !== "N/A" ? 6 : 0 }}>
+                            {kpi.reason}
+                          </div>
+                          {/* Evidence quote */}
+                          {kpi.evidence && kpi.evidence !== "N/A" && (
+                            <div style={{
+                              fontSize: "0.75rem", fontStyle: "italic", color: "var(--text-muted)",
+                              paddingLeft: 10, borderLeft: `2px solid ${dim.tone}50`, opacity: 0.85
+                            }}>
+                              "{kpi.evidence}"
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
+        {/* Risk Flags Table */}
         <div className="card">
           <div className="card__head">
-            <h2>Red Flags & Risk Deductions</h2>
-            <span className="muted">Separate from the scored KPI matrix and deducted from the final score</span>
+            <h2 style={{ color: "var(--orange)" }}>Risk Flags Detected</h2>
+            <span className="muted">Critical blockers or red flags impacting deal success</span>
           </div>
-          <div style={{ display: "grid", gap: 12 }}>
-            {riskDimension?.kpis.map((kpi) => (
-              <div
-                key={kpi.id}
-                style={{
-                  border: "1px solid var(--card-border)",
-                  borderRadius: 16,
-                  padding: 16,
-                  background: kpi.present ? "rgba(220,38,38,0.08)" : "rgba(5,150,105,0.06)"
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontWeight: 700 }}>{kpi.label}</div>
-                    <div className="muted" style={{ marginTop: 4 }}>{kpi.detail}</div>
-                  </div>
-                  <span className={`badge ${kpi.present ? "badge--red" : "badge--green"}`}>
-                    {kpi.present ? "Present · -5" : "Clear"}
-                  </span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-                  <div>
-                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Proper handling</div>
-                    <div className="muted" style={{ lineHeight: 1.55 }}>{kpi.proper}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Current observation</div>
-                    <div className="muted" style={{ lineHeight: 1.55 }}>
-                      {kpi.covered?.[0] || "No risk observation recorded."}
-                    </div>
-                    {Array.isArray(kpi.missing) && kpi.missing.length ? (
-                      <div className="muted" style={{ marginTop: 8, lineHeight: 1.55 }}>
-                        {kpi.missing[0]}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {activeRisks.length ? (
-              <div className="alert" style={{ marginTop: 4 }}>
-                Total risk deduction applied: {activeRisks.length} flag(s) x 5 points = -{kpiAssessment.riskDeductionPoints}
-              </div>
-            ) : (
-              <div className="alert success" style={{ marginTop: 4 }}>
-                No active red-flag deductions were triggered for this call.
-              </div>
-            )}
+          <div className="table-container" style={{ overflowX: "auto" }}>
+            <table className="table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+              <thead>
+                <tr style={{ textAlign: "left", borderBottom: "2px solid var(--card-border)" }}>
+                  <th style={{ padding: "12px 8px" }}>Risk Indicator</th>
+                  <th style={{ padding: "12px 8px", textAlign: "center" }}>Present</th>
+                  <th style={{ padding: "12px 8px", textAlign: "center" }}>Deduction</th>
+                  <th style={{ padding: "12px 8px" }}>Evidence Quote</th>
+                </tr>
+              </thead>
+              <tbody>
+                {riskDimension?.kpis.map((kpi) => (
+                  <tr key={kpi.id} style={{ borderBottom: "1px solid var(--card-border)", background: kpi.present ? "rgba(239,68,68,0.05)" : "transparent" }}>
+                    <td style={{ padding: "12px 8px", fontWeight: 600 }}>{kpi.label}</td>
+                    <td style={{ padding: "12px 8px", textAlign: "center" }}>
+                      {kpi.present ? (
+                        <span style={{ color: "#ef4444", fontWeight: 800 }}>TRUE</span>
+                      ) : (
+                        <span className="muted">FALSE</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 8px", textAlign: "center" }}>
+                      {kpi.present ? <span style={{ color: "#ef4444", fontWeight: 700 }}>-5</span> : <span className="muted">0</span>}
+                    </td>
+                    <td style={{ padding: "12px 8px" }}>
+                      {kpi.present ? (
+                        <div style={{ fontStyle: "italic", fontSize: "0.85rem" }}>"{kpi.evidence}"</div>
+                      ) : (
+                        <span className="muted">No risk evidence detected.</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: 16, textAlign: "right" }}>
+            <div className="muted" style={{ fontSize: "0.9rem" }}>
+              Total Risk Deduction: <strong>-{kpiAssessment.riskDeductionPoints} points</strong>
+            </div>
           </div>
         </div>
+
+
       </>
     );
   }
@@ -764,11 +834,23 @@ export default function MeetingReportPage() {
           >
             Back
           </button>
-          {r ? (
-            <button className="btn btn--green btn--sm" type="button" onClick={handleDownloadPdf} disabled={state.downloadingPdf}>
-              {state.downloadingPdf ? "Generating PDF..." : "Download PDF"}
-            </button>
-          ) : null}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {r?.transcript?.transcriptText ? (
+              <button
+                className="btn btn--orange btn--sm"
+                type="button"
+                onClick={handleReAnalyze}
+                disabled={state.loading}
+              >
+                {state.loading ? "Analyzing..." : "Re-analyze Transcript"}
+              </button>
+            ) : null}
+            {r ? (
+              <button className="btn btn--green btn--sm" type="button" onClick={handleDownloadPdf} disabled={state.downloadingPdf}>
+                {state.downloadingPdf ? "Generating PDF..." : "Download PDF"}
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -811,257 +893,113 @@ export default function MeetingReportPage() {
             </div>
           </div>
 
-          <div className="card">
-            <h2>Meeting Summary</h2>
-            <div className="kv" style={{ marginBottom: 16 }}>
-              <div className="kv__k">Client Name</div>
-              <div className="kv__v" style={{ fontWeight: 600, color: "var(--text-accent)" }}>{r.clientName || "Unknown"}</div>
-              <div className="kv__k">Product</div>
-              <div className="kv__v" style={{ fontWeight: 600 }}>{r.productName || "Unknown"}</div>
+          {r.summary ? (
+            <div className="card" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.06), rgba(17,24,39,0.5))", borderLeft: "4px solid var(--accent)" }}>
+              <h2 style={{ fontSize: "1rem", fontWeight: 800, marginBottom: 12, color: "var(--accent)" }}>Meeting Summary</h2>
+              <p style={{ margin: 0, fontSize: "0.95rem", lineHeight: 1.75, color: "var(--text-main)" }}>
+                {r.summary.replace(/\*\*/g, "").replace(/^\s*[-–]\s*/gm, "").replace(/\s+/g, " ").trim()}
+              </p>
             </div>
-            <div className="muted">{r.summary || "-"}</div>
-          </div>
+          ) : null}
 
           {renderKpiShowcase()}
+          {renderScoreBasis()}
+          {renderCriticalGaps()}
+          {renderImprovementPlan()}
 
+          {/* Pros & Cons — dimension-labeled */}
           <div className="grid grid--2">
             <div className="card">
-              <h2>Sentiment Analysis</h2>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  marginBottom: 12
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ fontSize: "1.8rem" }}>{sMeta.emoji}</div>
-                  <div>
-                    <div style={{ fontWeight: 700, color: sMeta.color }}>{sMeta.label}</div>
-                    <div className="muted" style={{ fontSize: "0.82rem" }}>
-                      Overall meeting tone and client reaction
-                    </div>
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 800, color: sMeta.color, fontSize: "1.1rem" }}>{sMeta.score}/100</div>
-                  <div className="muted" style={{ fontSize: "0.78rem" }}>Sentiment rating</div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 999,
-                  background: "rgba(148,163,184,0.2)",
-                  overflow: "hidden",
-                  marginBottom: 12
-                }}
-              >
-                <div
-                  style={{
-                    width: `${sMeta.score}%`,
-                    height: "100%",
-                    borderRadius: 999,
-                    background: sMeta.color
-                  }}
-                />
-              </div>
-
-              <div className="muted" style={{ fontSize: "0.9rem", lineHeight: 1.6 }}>
-                {qualitySentences.length
-                  ? qualitySentences.slice(0, 4).map((p, idx) => <div key={idx}>- {p}</div>)
-                  : "Detailed sentiment explanation is not available for this report."}
-              </div>
-
-              {sentimentTimeline.length ? (
-                <div style={{ marginTop: 12 }}>
-                  <div className="muted" style={{ fontWeight: 700, marginBottom: 6 }}>
-                    Sentiment timeline
-                  </div>
-                  {sentimentTimeline.slice(0, 3).map((s, idx) => (
-                    <div key={idx} className="muted" style={{ fontSize: "0.86rem" }}>
-                      - {s}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="card">
-              <h2>Rating & Depth</h2>
-              {r.scores ? (
-                <div className="kv">
-                  <div className="kv__k">Overall quality rating</div>
-                  <div className="kv__v">{r.scores.totalScore}/100</div>
-                  <div className="kv__k">Communication impact</div>
-                  <div className="kv__v">{r.scores.communicationScore}/20</div>
-                  <div className="kv__k">Engagement strength</div>
-                  <div className="kv__v">{r.scores.engagementScore}/20</div>
-                  <div className="kv__k">Structure clarity</div>
-                  <div className="kv__v">{r.scores.structureScore}/20</div>
-                  <div className="kv__k">Technical confidence</div>
-                  <div className="kv__v">{r.scores.technicalScore}/20</div>
-                  <div className="kv__k">Q&A handling quality</div>
-                  <div className="kv__v">{r.scores.qaScore}/20</div>
-                </div>
-              ) : (
-                <div className="muted">No rating details available yet.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid--2">
-            <div className="card">
-              <h2>Context (Point-wise)</h2>
-              <DetailList
-                items={(contextPoints.length ? contextPoints : summaryBullets).slice(0, 10)}
-                emptyText="No context points extracted."
-              />
-            </div>
-            <div className="card">
-              <h2>Client Needs (Point-wise)</h2>
-              <DetailList
-                items={clientNeeds.slice(0, 10)}
-                emptyText="Client needs were not explicitly identified. Add clearer requirement discussion in transcript."
-              />
-            </div>
-          </div>
-
-          <div className="grid grid--2">
-            <div className="card">
-              <h2>Pros</h2>
-              <DetailList items={r.pros} emptyText="-" />
-            </div>
-            <div className="card">
-              <h2>Cons</h2>
-              <DetailList items={r.cons} emptyText="-" />
-            </div>
-            <div className="card" style={{ gridColumn: "1 / -1" }}>
-              <h2>Actionable Tips</h2>
-              {r.tips?.length ? (
-                <ul style={{ background: "rgba(56, 189, 248, 0.05)", padding: "16px 16px 16px 36px", borderRadius: 12 }}>
-                  {r.tips.map((t, idx) => (
-                    <li key={idx} style={{ color: "var(--text-accent)" }}>{t}</li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="muted">No specific tips.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="card">
-            <h2>Complete Analysis</h2>
-            <p className="muted" style={{ marginTop: -6 }}>
-              Synthesized what happened story from the transcript.
-            </p>
-
-            <div className="grid grid--2">
-              <div>
-                <div className="muted" style={{ fontWeight: 800, marginBottom: 8 }}>
-                  What happened
-                </div>
-                {completeAnalysisItems.length ? (
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {completeAnalysisItems.slice(0, 8).map((it, idx) => (
-                      <li key={idx}>
-                        {it.label ? (
-                          <>
-                            <span style={{ fontWeight: 800 }}>{it.label}:</span> {it.value}
-                          </>
-                        ) : (
-                          it.value
+              <h2 style={{ marginBottom: 14 }}>What Went Well</h2>
+              {r.pros?.length ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {parseDimPrefixed(r.pros).map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ color: "#4ade80", fontWeight: 800, fontSize: "1rem", lineHeight: 1.4, flexShrink: 0 }}>&#10003;</span>
+                      <div style={{ fontSize: "0.88rem", lineHeight: 1.55, color: "var(--text-muted)" }}>
+                        {item.dim !== "General" && (
+                          <span style={{ fontWeight: 700, color: "var(--text-main)", marginRight: 4 }}>{item.dim}:</span>
                         )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="muted">No context points available.</div>
-                )}
-              </div>
+                        {item.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="muted">No pros recorded.</div>}
+            </div>
+            <div className="card">
+              <h2 style={{ marginBottom: 14 }}>What Went Wrong</h2>
+              {r.cons?.length ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {parseDimPrefixed(r.cons).map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ color: "#f87171", fontWeight: 800, fontSize: "1rem", lineHeight: 1.4, flexShrink: 0 }}>&#10007;</span>
+                      <div style={{ fontSize: "0.88rem", lineHeight: 1.55, color: "var(--text-muted)" }}>
+                        {item.dim !== "General" && (
+                          <span style={{ fontWeight: 700, color: "var(--text-main)", marginRight: 4 }}>{item.dim}:</span>
+                        )}
+                        {item.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="muted">No cons recorded.</div>}
+            </div>
+          </div>
 
+          {/* Complete Analysis */}
+          <div className="card">
+            <div className="card__head">
               <div>
-                <div className="muted" style={{ fontWeight: 800, marginBottom: 8 }}>
-                  Coach plan
+                <h2 style={{ fontSize: "1.2rem", fontWeight: 800 }}>Complete Analysis</h2>
+                <p className="muted" style={{ marginTop: 4, fontSize: "0.85rem" }}>Overall deal summary and momentum assessment</p>
+              </div>
+              <div style={{ display: "flex", gap: 20, flexShrink: 0 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Sentiment</div>
+                  <div style={{ fontWeight: 800, color: sMeta.color }}>{sMeta.label}</div>
                 </div>
-                <DetailList items={Array.isArray(r.tips) ? r.tips.slice(0, 7) : []} emptyText="No coaching tips available." />
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Questions</div>
+                  <div style={{ fontWeight: 800 }}>{r.questionsCount ?? 0}</div>
+                </div>
               </div>
             </div>
-
-            <div className="muted" style={{ marginTop: 12, lineHeight: 1.6 }}>
-              Sentiment:
-              {" "}
-              <span style={{ color: sMeta.color, fontWeight: 800 }}>
-                {sMeta.label}
-              </span>
-              {" "}· Questions:
-              {" "}
-              <span style={{ fontWeight: 800 }}>{r.questionsCount ?? 0}</span>
-              {" "}· Notes: {r.demoQualityEvaluation || "-"}
-            </div>
+            <p style={{ margin: 0, fontSize: "0.93rem", lineHeight: 1.75, color: "var(--text-main)" }}>
+              {(r.demoQualityEvaluation || r.summary || "").split("**").join("").trim()}
+            </p>
           </div>
 
-          <div className="card">
-            <h2>Scores</h2>
-            {r.scores ? (
-              <div className="grid grid--kpis">
-                <div className="kpi">
-                  <div className="kpi__label">Communication</div>
-                  <div className="kpi__value">{r.scores.communicationScore}</div>
-                  <div className="kpi__hint">out of 20</div>
-                </div>
-                <div className="kpi">
-                  <div className="kpi__label">Engagement</div>
-                  <div className="kpi__value">{r.scores.engagementScore}</div>
-                  <div className="kpi__hint">out of 20</div>
-                </div>
-                <div className="kpi">
-                  <div className="kpi__label">Structure</div>
-                  <div className="kpi__value">{r.scores.structureScore}</div>
-                  <div className="kpi__hint">out of 20</div>
-                </div>
-                <div className="kpi">
-                  <div className="kpi__label">Technical</div>
-                  <div className="kpi__value">{r.scores.technicalScore}</div>
-                  <div className="kpi__hint">out of 20</div>
-                </div>
-                <div className="kpi">
-                  <div className="kpi__label">Q&A</div>
-                  <div className="kpi__value">{r.scores.qaScore}</div>
-                  <div className="kpi__hint">out of 20</div>
-                </div>
-                <div className="kpi">
-                  <div className="kpi__label">Total</div>
-                  <div className="kpi__value">{r.scores.totalScore}</div>
-                  <div className="kpi__hint">out of 100</div>
-                </div>
-              </div>
-            ) : (
-              <div className="muted">No demo score saved for this meeting.</div>
-            )}
-          </div>
-
-          <div className="card">
+                    <div className="card">
             <div className="card__head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2>Transcript</h2>
+              <button 
+                className="btn btn--sm" 
+                onClick={() => setState(s => ({ ...s, showTranscript: !s.showTranscript }))}
+              >
+                {state.showTranscript ? "Hide Full Transcript" : "Show Full Transcript"}
+              </button>
             </div>
             {r.transcript?.transcriptText ? (
-              <pre
-                style={{
-                  whiteSpace: "pre-wrap",
-                  background: "var(--surface-1)",
-                  padding: 16,
-                  borderRadius: 8,
-                  marginTop: 12,
-                  fontSize: "0.9rem",
-                  lineHeight: 1.6
-                }}
-              >
-                {r.transcript.transcriptText}
-              </pre>
+              state.showTranscript ? (
+                <pre
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    background: "var(--surface-1)",
+                    padding: 16,
+                    borderRadius: 8,
+                    marginTop: 12,
+                    fontSize: "0.9rem",
+                    lineHeight: 1.6
+                  }}
+                >
+                  {r.transcript.transcriptText}
+                </pre>
+              ) : (
+                <div className="muted" style={{ marginTop: 8 }}>
+                  Transcript is available but hidden. Click "Show Full Transcript" to view it.
+                </div>
+              )
             ) : (
               <>
                 <p className="muted" style={{ marginTop: 8 }}>
@@ -1121,17 +1059,7 @@ export default function MeetingReportPage() {
             </div>
           ) : null}
 
-          <div className="card">
-            <h2>Client Sentiment & Questions</h2>
-            <div className="kv">
-              <div className="kv__k">Sentiment</div>
-              <div className="kv__v">{r.sentiment || "neutral"}</div>
-              <div className="kv__k">Questions count</div>
-              <div className="kv__v">{r.questionsCount ?? 0}</div>
-              <div className="kv__k">Coaching tips</div>
-              <div className="kv__v">{r.demoQualityEvaluation || "-"}</div>
-            </div>
-          </div>
+
         </>
       ) : null}
     </div>

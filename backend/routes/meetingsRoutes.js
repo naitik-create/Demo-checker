@@ -9,7 +9,10 @@ import {
   monitorMeeting,
   unmonitorMeeting,
   fetchMeetingTranscript,
-  joinMeetingFromSystem
+  joinMeetingFromSystem,
+  reAnalyzeMeeting,
+  toggleIsDemo,
+  upsertDemoFlag
 } from "../controllers/meetingsController.js";
 import { requireAuth, requireRole } from "../middleware/authMiddleware.js";
 
@@ -38,8 +41,17 @@ meetingsRoutes.post("/:meetingId/join", requireAuth, joinMeetingFromSystem);
 // Paste transcript/script and generate analysis + score
 meetingsRoutes.post("/manual-analysis", requireAuth, manualAnalyzeMeeting);
 
+// Re-analyze existing transcript for a meeting (any authenticated user — consultant can re-analyze own meetings)
+meetingsRoutes.post("/:meetingId/re-analyze", requireAuth, reAnalyzeMeeting);
+
 // Fetch transcript manually for a specific meeting
 meetingsRoutes.post("/:meetingId/fetch-transcript", requireAuth, fetchMeetingTranscript);
+
+// Upsert isDemo flag by teamsMeetingId (creates meeting record if not in DB yet)
+meetingsRoutes.patch("/upsert-demo", requireAuth, upsertDemoFlag);
+
+// Toggle isDemo flag on a meeting (consultant can toggle own, manager/admin can toggle any)
+meetingsRoutes.patch("/:meetingId/is-demo", requireAuth, toggleIsDemo);
 
 // Delete a meeting/demo and its related documents
 meetingsRoutes.delete("/:meetingId", requireAuth, deleteMeeting);

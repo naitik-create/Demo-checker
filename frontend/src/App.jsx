@@ -15,6 +15,7 @@ import ManualScriptAnalysisPage from "./pages/ManualScriptAnalysisPage.jsx";
 import ReportsListPage from "./pages/ReportsListPage.jsx";
 import ManagerPerformancePage from "./pages/ManagerPerformancePage.jsx";
 import PresalesCompleteReportPage from "./pages/PresalesCompleteReportPage.jsx";
+import ManagerSettingsPage from "./pages/ManagerSettingsPage.jsx";
 import { useParams } from "react-router-dom";
 
 function LegacyMeetingReportRedirect() {
@@ -48,7 +49,7 @@ export default function App() {
             <Route path="/manager/leaderboard" element={<ManagerPerformancePage />} />
             <Route path="/manager/presales-report" element={<PresalesCompleteReportPage />} />
             <Route path="/manager/reports" element={<ReportsListPage />} />
-            <Route path="/reports/:meetingId" element={<MeetingReportPage />} />
+            <Route path="/manager/settings" element={<ManagerSettingsPage />} />
             <Route path="/consultants/:consultantId" element={<ConsultantDetailPage />} />
             <Route path="/account" element={<AccountPage />} />
           </Route>

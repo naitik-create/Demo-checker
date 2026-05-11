@@ -30,6 +30,7 @@ export const Meeting = sequelize.define(
       allowNull: false
     },
     autoAnalyzedAt: { type: DataTypes.DATE, allowNull: true },
+    isDemo: { type: DataTypes.BOOLEAN, defaultValue: false },
     raw: { type: DataTypes.JSONB, allowNull: true }
   },
   {

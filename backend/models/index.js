@@ -5,6 +5,7 @@ import { DemoScore } from "./DemoScore.js";
 import { AnalysisReport } from "./AnalysisReport.js";
 import { Recording } from "./Recording.js";
 import { SttMeeting } from "./SttMeeting.js";
+import { AppSetting } from "./AppSetting.js";
 
 // Associations
 Meeting.belongsTo(User, { foreignKey: "consultantId", as: "consultant" });
@@ -30,6 +31,7 @@ export async function syncModels() {
   await AnalysisReport.sync({ alter: true });
   await Recording.sync({ alter: true });
   await SttMeeting.sync({ alter: true });
+  await AppSetting.sync({ alter: true });
 }
 
-export { User, Meeting, Transcript, DemoScore, AnalysisReport, Recording, SttMeeting };
+export { User, Meeting, Transcript, DemoScore, AnalysisReport, Recording, SttMeeting, AppSetting };

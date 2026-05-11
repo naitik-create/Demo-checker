@@ -78,40 +78,38 @@ export default function PresalesCompleteReportPage() {
   );
   const departmentWidget = useMemo(() => {
     let total = 0;
-    let sumComm = 0;
-    let sumEng = 0;
-    let sumStruct = 0;
-    let sumTech = 0;
-    let sumQa = 0;
+    let sumDisc = 0, sumRapp = 0, sumDemo = 0, sumObj = 0, sumEng = 0, sumClose = 0;
     const sentiments = { positive: 0, neutral: 0, negative: 0 };
     for (const c of consultants) {
       const n = c.totalDemos || 0;
       if (!n) continue;
       total += n;
       const d = c.dimensionAverages || {};
-      if (typeof d.communicationScore === "number") sumComm += d.communicationScore * n;
+      if (typeof d.discoveryScore === "number") sumDisc += d.discoveryScore * n;
+      if (typeof d.rapportScore === "number") sumRapp += d.rapportScore * n;
+      if (typeof d.demoScore === "number") sumDemo += d.demoScore * n;
+      if (typeof d.objectionsScore === "number") sumObj += d.objectionsScore * n;
       if (typeof d.engagementScore === "number") sumEng += d.engagementScore * n;
-      if (typeof d.structureScore === "number") sumStruct += d.structureScore * n;
-      if (typeof d.technicalScore === "number") sumTech += d.technicalScore * n;
-      if (typeof d.qaScore === "number") sumQa += d.qaScore * n;
+      if (typeof d.closeScore === "number") sumClose += d.closeScore * n;
       const sc = c.sentimentCounts || {};
       sentiments.positive += sc.positive || 0;
       sentiments.neutral += sc.neutral || 0;
       sentiments.negative += sc.negative || 0;
     }
-    const to10 = (sum20) => (total ? Number(((sum20 / total) / 2).toFixed(1)) : null);
-    const tone = to10(sumComm);
-    const technical = to10(sumTech);
-    const completeness = to10(sumStruct);
-    const response = to10(sumQa);
-    const empathy = to10(sumEng);
-    const resolution =
-      technical != null && completeness != null ? Number(((technical + completeness) / 2).toFixed(1)) : null;
-    const sentimentScore =
-      (sentiments.positive + sentiments.neutral + sentiments.negative) > 0
+    const avg = (sum, max) => (total ? Number(((sum / total) / (max / 10)).toFixed(1)) : null);
+    
+    return { 
+      discovery: avg(sumDisc, 75),
+      rapport: avg(sumRapp, 70),
+      demo: avg(sumDemo, 85),
+      objections: avg(sumObj, 70),
+      engagement: avg(sumEng, 80),
+      close: avg(sumClose, 65),
+      sentimentScore: (sentiments.positive + sentiments.neutral + sentiments.negative) > 0
         ? Number(((sentiments.positive * 10 + sentiments.neutral * 7 + sentiments.negative * 4) / (sentiments.positive + sentiments.neutral + sentiments.negative)).toFixed(1))
-        : null;
-    return { tone, technical, completeness, response, empathy, resolution, sentimentScore, sentiments };
+        : null, 
+      sentiments 
+    };
   }, [consultants]);
 
   const deptAvgScore10 = useMemo(() => {
@@ -278,14 +276,14 @@ export default function PresalesCompleteReportPage() {
       const dims = c.dimensionAverages || {};
       autoTable(doc, {
         startY: y,
-        head: [["KPI", "Value (/10)"]],
+        head: [["Dimension", "Value (/10)"]],
         body: [
-          ["Tone", dims.communicationScore != null ? Number((dims.communicationScore / 2).toFixed(1)) : "—"],
-          ["Technical Accuracy", dims.technicalScore != null ? Number((dims.technicalScore / 2).toFixed(1)) : "—"],
-          ["Completeness", dims.structureScore != null ? Number((dims.structureScore / 2).toFixed(1)) : "—"],
-          ["Response Time", dims.qaScore != null ? Number((dims.qaScore / 2).toFixed(1)) : "—"],
-          ["Empathy", dims.engagementScore != null ? Number((dims.engagementScore / 2).toFixed(1)) : "—"],
-          ["Resolution Quality", (dims.technicalScore != null && dims.structureScore != null) ? Number(((dims.technicalScore + dims.structureScore) / 4).toFixed(1)) : "—"],
+          ["Discovery", dims.discoveryScore != null ? Number((dims.discoveryScore / 7.5).toFixed(1)) : "—"],
+          ["Rapport", dims.rapportScore != null ? Number((dims.rapportScore / 7).toFixed(1)) : "—"],
+          ["Demo Delivery", dims.demoScore != null ? Number((dims.demoScore / 8.5).toFixed(1)) : "—"],
+          ["Objections", dims.objectionsScore != null ? Number((dims.objectionsScore / 7).toFixed(1)) : "—"],
+          ["Engagement", dims.engagementScore != null ? Number((dims.engagementScore / 8).toFixed(1)) : "—"],
+          ["Closing", dims.closeScore != null ? Number((dims.closeScore / 6.5).toFixed(1)) : "—"],
           ["Customer Sentiment", c.sentimentCounts ? ((c.sentimentCounts.positive * 10 + c.sentimentCounts.neutral * 7 + c.sentimentCounts.negative * 4) / Math.max(1, c.sentimentCounts.positive + c.sentimentCounts.neutral + c.sentimentCounts.negative)).toFixed(1) : "—"]
         ],
         theme: "grid",
@@ -297,19 +295,18 @@ export default function PresalesCompleteReportPage() {
       y = doc.lastAutoTable.finalY + 18;
       autoTable(doc, {
         startY: y,
-        head: [["Demo", "Date", "Client", "Product", "Comm", "Eng", "Struct", "Tech", "Q&A", "Total", "Sentiment"]],
+        head: [["Demo", "Date", "Client", "Disc", "Rapp", "Demo", "Obj", "Eng", "Close", "Total"]],
         body: (c.demos || []).map((d) => [
           d.title || "—",
           d.startTime ? new Date(d.startTime).toLocaleDateString("en-GB") : "—",
           d.clientName || "—",
-          d.productName || "—",
-          d.communicationScore ?? "—",
+          d.discoveryScore ?? "—",
+          d.rapportScore ?? "—",
+          d.demoScore ?? "—",
+          d.objectionsScore ?? "—",
           d.engagementScore ?? "—",
-          d.structureScore ?? "—",
-          d.technicalScore ?? "—",
-          d.qaScore ?? "—",
-          typeof d.totalScore === "number" ? String(d.totalScore) : "—",
-          sentimentLabel(d.sentiment)
+          d.closeScore ?? "—",
+          typeof d.totalScore === "number" ? String(d.totalScore) : "—"
         ]),
         theme: "grid",
         headStyles: { fillColor: [16, 185, 129], textColor: 255, fontSize: 9 },
@@ -475,12 +472,12 @@ export default function PresalesCompleteReportPage() {
           </div>
           <div style={{ flex: 1, minWidth: 260 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <StatBar label="Tone" value={departmentWidget.tone} color="blue" />
-              <StatBar label="Technical Accuracy" value={departmentWidget.technical} color="green" />
-              <StatBar label="Completeness" value={departmentWidget.completeness} color="purple" />
-              <StatBar label="Response Time" value={departmentWidget.response} color="orange" />
-              <StatBar label="Empathy" value={departmentWidget.empathy} color="purple" />
-              <StatBar label="Resolution Quality" value={departmentWidget.resolution} color="green" />
+              <StatBar label="Discovery" value={departmentWidget.discovery} color="blue" />
+              <StatBar label="Rapport" value={departmentWidget.rapport} color="green" />
+              <StatBar label="Demo Delivery" value={departmentWidget.demo} color="purple" />
+              <StatBar label="Objections" value={departmentWidget.objections} color="orange" />
+              <StatBar label="Engagement" value={departmentWidget.engagement} color="purple" />
+              <StatBar label="Closing" value={departmentWidget.close} color="green" />
               <div style={{ gridColumn: "1 / -1" }}>
                 <StatBar label="Customer Sentiment" value={departmentWidget.sentimentScore} color="orange" />
               </div>
@@ -497,15 +494,15 @@ export default function PresalesCompleteReportPage() {
           </div>
           {(() => {
             const dims = selectedConsultant.dimensionAverages || {};
-            const tone = dims.communicationScore != null ? Number((dims.communicationScore / 2).toFixed(1)) : null;
-            const technical = dims.technicalScore != null ? Number((dims.technicalScore / 2).toFixed(1)) : null;
-            const completeness = dims.structureScore != null ? Number((dims.structureScore / 2).toFixed(1)) : null;
-            const response = dims.qaScore != null ? Number((dims.qaScore / 2).toFixed(1)) : null;
-            const empathy = dims.engagementScore != null ? Number((dims.engagementScore / 2).toFixed(1)) : null;
-            const resolution =
-              dims.technicalScore != null && dims.structureScore != null
-                ? Number(((dims.technicalScore + dims.structureScore) / 4).toFixed(1))
-                : null;
+            const d = (val, max) => (val != null ? Number((val / (max / 10)).toFixed(1)) : null);
+            
+            const disc = d(dims.discoveryScore, 75);
+            const rapp = d(dims.rapportScore, 70);
+            const demo = d(dims.demoScore, 85);
+            const obj = d(dims.objectionsScore, 70);
+            const eng = d(dims.engagementScore, 80);
+            const close = d(dims.closeScore, 65);
+
             const counts = selectedConsultant.sentimentCounts || { positive: 0, neutral: 0, negative: 0 };
             const sentimentScore =
               (counts.positive + counts.neutral + counts.negative) > 0
@@ -532,12 +529,12 @@ export default function PresalesCompleteReportPage() {
                 </div>
                 <div style={{ flex: 1, minWidth: 260 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <StatBar label="Tone" value={tone} color="blue" />
-                    <StatBar label="Technical Accuracy" value={technical} color="green" />
-                    <StatBar label="Completeness" value={completeness} color="purple" />
-                    <StatBar label="Response Time" value={response} color="orange" />
-                    <StatBar label="Empathy" value={empathy} color="purple" />
-                    <StatBar label="Resolution Quality" value={resolution} color="green" />
+                    <StatBar label="Discovery" value={disc} color="blue" />
+                    <StatBar label="Rapport" value={rapp} color="green" />
+                    <StatBar label="Demo Delivery" value={demo} color="purple" />
+                    <StatBar label="Objections" value={obj} color="orange" />
+                    <StatBar label="Engagement" value={eng} color="purple" />
+                    <StatBar label="Closing" value={close} color="green" />
                     <div style={{ gridColumn: "1 / -1" }}>
                       <StatBar label="Customer Sentiment" value={sentimentScore} color="orange" />
                     </div>
@@ -557,25 +554,27 @@ export default function PresalesCompleteReportPage() {
           </div>
           <div className="table">
             <div className="table__row table__row--head">
-              <div>Demo</div>
+              <div style={{ flex: 2 }}>Demo</div>
               <div>Date</div>
-              <div>Comm</div>
+              <div>Disc</div>
+              <div>Rapp</div>
+              <div>Demo</div>
+              <div>Obj</div>
               <div>Eng</div>
-              <div>Struct</div>
-              <div>Tech</div>
-              <div>Q&A</div>
+              <div>Close</div>
               <div>Total</div>
             </div>
             {(selectedConsultant.demos || []).map((d) => (
               <div key={d.meetingId} className="table__row">
-                <div className="ellipsis">{d.title || "—"}</div>
+                <div className="ellipsis" style={{ flex: 2 }}>{d.title || "—"}</div>
                 <div>{d.startTime ? new Date(d.startTime).toLocaleDateString("en-GB") : "—"}</div>
-                <div>{d.communicationScore ?? "—"}</div>
+                <div>{d.discoveryScore ?? "—"}</div>
+                <div>{d.rapportScore ?? "—"}</div>
+                <div>{d.demoScore ?? "—"}</div>
+                <div>{d.objectionsScore ?? "—"}</div>
                 <div>{d.engagementScore ?? "—"}</div>
-                <div>{d.structureScore ?? "—"}</div>
-                <div>{d.technicalScore ?? "—"}</div>
-                <div>{d.qaScore ?? "—"}</div>
-                <div>{d.totalScore ?? "—"}</div>
+                <div>{d.closeScore ?? "—"}</div>
+                <div style={{ fontWeight: 700 }}>{d.totalScore ?? "—"}</div>
               </div>
             ))}
           </div>

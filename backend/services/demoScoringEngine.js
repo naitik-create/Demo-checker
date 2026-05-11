@@ -1,38 +1,33 @@
 export function calculateDemoScores({
-  communicationScore,
+  discoveryScore,
+  rapportScore,
+  demoScore,
+  objectionsScore,
   engagementScore,
-  structureScore,
-  technicalScore,
-  qaScore
+  closeScore,
+  riskDeduction
 }) {
   const scores = {
-    communicationScore: Number(communicationScore),
-    engagementScore: Number(engagementScore),
-    structureScore: Number(structureScore),
-    technicalScore: Number(technicalScore),
-    qaScore: Number(qaScore)
+    discoveryScore: Number(discoveryScore || 0),
+    rapportScore: Number(rapportScore || 0),
+    demoScore: Number(demoScore || 0),
+    objectionsScore: Number(objectionsScore || 0),
+    engagementScore: Number(engagementScore || 0),
+    closeScore: Number(closeScore || 0),
+    riskDeduction: Number(riskDeduction || 0)
   };
 
-  for (const [k, v] of Object.entries(scores)) {
-    if (!Number.isFinite(v)) {
-      const err = new Error(`${k} must be a number`);
-      err.status = 400;
-      throw err;
-    }
-    if (v < 0 || v > 20) {
-      const err = new Error(`${k} must be between 0 and 20`);
-      err.status = 400;
-      throw err;
-    }
-  }
-
-  const totalScore =
-    scores.communicationScore +
+  const weightedTotal =
+    scores.discoveryScore +
+    scores.rapportScore +
+    scores.demoScore +
+    scores.objectionsScore +
     scores.engagementScore +
-    scores.structureScore +
-    scores.technicalScore +
-    scores.qaScore;
+    scores.closeScore;
 
-  return { ...scores, totalScore };
+  const adjusted = weightedTotal - scores.riskDeduction;
+  const totalScore = Math.max(0, Math.min(100, Math.round((adjusted / 445) * 100)));
+
+  return { ...scores, weightedTotal, totalScore };
 }
 

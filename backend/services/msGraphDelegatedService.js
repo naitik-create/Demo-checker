@@ -47,9 +47,12 @@ export async function refreshAccessToken(refreshToken) {
   };
 }
 
-export async function graphGet(accessToken, url, params) {
+export async function graphGet(accessToken, url, params, headers = {}) {
   const res = await axios.get(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { 
+      Authorization: `Bearer ${accessToken}`,
+      ...headers
+    },
     params
   });
   return res.data;
@@ -63,14 +66,10 @@ export async function listMyScheduledTeamsMeetings(accessToken, { startDateTime,
     $top: 100,
     $select:
       "id,subject,organizer,attendees,start,end,isOnlineMeeting,onlineMeetingProvider,onlineMeeting",
-    // Graph may reject filtering on `isOnlineMeeting` for delegated token.
-    // We'll filter in JS instead.
+  }, {
+    "Prefer": 'outlook.timezone="UTC"'
   });
-  const events = data?.value || [];
-  return events.filter(
-    (e) =>
-      e?.isOnlineMeeting === true &&
-      (e?.onlineMeetingProvider === "teamsForBusiness" || e?.onlineMeeting?.joinUrl || e?.onlineMeeting?.joinWebUrl)
-  );
+  // Return all calendar events — filtering by isOnlineMeeting excluded recurring/manually-linked meetings
+  return data?.value || [];
 }
 

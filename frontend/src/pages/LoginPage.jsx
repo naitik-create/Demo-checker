@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
+import AppLogo from "../components/AppLogo.jsx";
 
 export default function LoginPage() {
   const { login, isAuthed, user } = useAuth();
@@ -28,152 +29,194 @@ export default function LoginPage() {
     }
   }
 
+  const inputStyle = {
+    display: "block",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "10px 14px",
+    border: "1px solid #e0e0e0",
+    borderRadius: 6,
+    fontSize: "0.92rem",
+    color: "#1a1a1a",
+    background: "#fff",
+    outline: "none",
+    fontFamily: "inherit",
+  };
+
+  const labelStyle = {
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    letterSpacing: "0.07em",
+    color: "#888",
+    textTransform: "uppercase",
+    display: "block",
+    marginBottom: 6,
+  };
+
   return (
-    <div className="auth-shell">
-      {/* ── Left Brand Panel ── */}
-      <div className="auth-brand">
-        <div className="auth-brand__orb auth-brand__orb--1" />
-        <div className="auth-brand__orb auth-brand__orb--2" />
-        <div className="auth-brand__orb auth-brand__orb--3" />
+    <div style={{
+      minHeight: "100vh",
+      background: "#efefef",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      fontFamily: "inherit",
+    }}>
+      <div style={{
+        width: "100%",
+        maxWidth: 480,
+        background: "#fff",
+        borderRadius: 12,
+        boxShadow: "0 4px 28px rgba(0,0,0,0.10)",
+        borderLeft: "5px solid #e53935",
+        overflow: "hidden",
+      }}>
+        <div style={{ padding: "36px 40px 32px" }}>
 
-        <div className="auth-brand__content">
-          <div className="auth-brand__logo">🎯</div>
-          <h2>Demo Monitoring AI</h2>
-          <p>
-            AI-powered analytics for your presales demos. Track performance,
-            get transcripts, and score every meeting automatically.
-          </p>
-        </div>
-
-        <div className="auth-brand__features">
-          <div className="auth-brand__feature">
-            <div className="auth-brand__feature-icon" style={{ background: "rgba(99,179,237,0.2)" }}>📊</div>
-            <div>Real-time demo performance analytics</div>
-          </div>
-          <div className="auth-brand__feature">
-            <div className="auth-brand__feature-icon" style={{ background: "rgba(167,139,250,0.2)" }}>🤖</div>
-            <div>AI-powered transcript & scoring</div>
-          </div>
-          <div className="auth-brand__feature">
-            <div className="auth-brand__feature-icon" style={{ background: "rgba(52,211,153,0.2)" }}>🔗</div>
-            <div>Microsoft Teams auto-sync</div>
-          </div>
-          <div className="auth-brand__feature">
-            <div className="auth-brand__feature-icon" style={{ background: "rgba(251,146,60,0.2)" }}>📋</div>
-            <div>Detailed reports: pros, cons & tips</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Right Form Panel ── */}
-      <div className="auth-form-panel">
-        <div className="auth-form-inner">
+          {/* Logo */}
           <div style={{ marginBottom: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: "linear-gradient(135deg, var(--accent), var(--purple))",
-                display: "grid", placeItems: "center", fontSize: "1.2rem",
-                boxShadow: "0 4px 16px var(--accent-glow)"
-              }}>🎯</div>
-              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--text-muted)" }}>Demo Monitoring</span>
+            <div style={{ marginBottom: 6 }}>
+              <AppLogo color="#1a1a1a" fontSize="3rem" svgSize={36} imgHeight={52} />
             </div>
-            <h1>Welcome back</h1>
-            <p>Sign in to access your dashboard</p>
+            <div style={{ color: "#aaa", fontSize: "0.82rem", paddingLeft: 2 }}>Demo Monitoring · Motadata</div>
           </div>
 
-          <form className="form" onSubmit={onSubmit}>
-            <label className="field">
-              <div className="field__label">Email address</div>
+          {/* Heading */}
+          <h1 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1a1a1a", margin: "0 0 24px" }}>
+            Demo Monitoring — Sign In
+          </h1>
+
+          {/* Form */}
+          <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Email Address</label>
               <input
-                className="input"
+                style={inputStyle}
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 type="email"
-                placeholder="you@company.com"
+                placeholder="Enter your email"
                 required
                 autoFocus
               />
-            </label>
+            </div>
 
-            <label className="field">
-              <div className="field__label">Password</div>
-              <div className="input-wrap">
+            <div>
+              <label style={labelStyle}>Password</label>
+              <div style={{ position: "relative" }}>
                 <input
-                  className="input"
+                  style={{ ...inputStyle, paddingRight: 52 }}
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                   type={showPass ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
-                  className="input-wrap__toggle"
                   onClick={() => setShowPass((s) => !s)}
-                  tabIndex={-1}
+                  style={{
+                    position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "#aaa", fontSize: "0.75rem", padding: 0, fontFamily: "inherit",
+                  }}
                 >
-                  {showPass ? "🙈" : "👁️"}
+                  {showPass ? "Hide" : "Show"}
                 </button>
               </div>
-            </label>
+            </div>
 
-            {state.error && <div className="alert">{state.error}</div>}
+            {state.error && (
+              <div style={{
+                padding: "10px 14px",
+                background: "rgba(229,57,53,0.07)",
+                border: "1px solid rgba(229,57,53,0.25)",
+                borderRadius: 6,
+                color: "#c62828",
+                fontSize: "0.84rem",
+              }}>
+                {state.error}
+              </div>
+            )}
 
             <button
-              className="btn"
-              disabled={state.loading}
               type="submit"
-              style={{ width: "100%", padding: "14px", fontSize: "1rem", marginTop: 4 }}
+              disabled={state.loading}
+              style={{
+                marginTop: 6,
+                padding: "12px",
+                background: "#e53935",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                cursor: state.loading ? "not-allowed" : "pointer",
+                opacity: state.loading ? 0.75 : 1,
+                fontFamily: "inherit",
+                letterSpacing: "0.01em",
+              }}
             >
-              {state.loading ? (
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ animation: "spin-slow 1s linear infinite", display: "inline-block" }}>⏳</span>
-                  Signing in…
-                </span>
-              ) : "Sign In →"}
+              {state.loading ? "Signing in…" : "Sign In →"}
             </button>
           </form>
 
-          <div className="auth-footer" style={{ marginTop: 20 }}>
+          {/* Register link */}
+          <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem", color: "#888" }}>
             Don&apos;t have an account?{" "}
-            <Link to="/register">Create account</Link>
+            <Link to="/register" style={{ color: "#e53935", fontWeight: 700, textDecoration: "none" }}>
+              Create account
+            </Link>
           </div>
 
-          {/* Role info */}
-          <div style={{
-            marginTop: 28,
-            padding: "16px",
-            background: "var(--surface-1)",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--card-border)",
-          }}>
-            <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+          {/* ACCESS TYPES */}
+          <div style={{ marginTop: 20, border: "1px solid #ececec", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{
+              padding: "7px 14px",
+              background: "#f7f7f7",
+              borderBottom: "1px solid #ececec",
+              fontSize: "0.68rem",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              color: "#aaa",
+              textTransform: "uppercase",
+            }}>
               Access Types
             </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.85rem" }}>
-                <span style={{
-                  width: 28, height: 28, borderRadius: 8,
-                  background: "rgba(167,139,250,0.15)", display: "grid", placeItems: "center", fontSize: "0.9rem", flexShrink: 0
-                }}>👔</span>
+            <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 6,
+                  background: "rgba(229,57,53,0.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "1rem", flexShrink: 0,
+                }}>👔</div>
                 <div>
-                  <div style={{ fontWeight: 600, color: "var(--text-main)" }}>Manager</div>
-                  <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Overview, consultants, all demos & reports</div>
+                  <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1a1a1a" }}>Manager</div>
+                  <div style={{ fontSize: "0.76rem", color: "#aaa" }}>Overview, consultants, all demos &amp; reports</div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.85rem" }}>
-                <span style={{
-                  width: 28, height: 28, borderRadius: 8,
-                  background: "rgba(59,130,246,0.15)", display: "grid", placeItems: "center", fontSize: "0.9rem", flexShrink: 0
-                }}>💼</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 6,
+                  background: "rgba(99,102,241,0.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "1rem", flexShrink: 0,
+                }}>💼</div>
                 <div>
-                  <div style={{ fontWeight: 600, color: "var(--text-main)" }}>Consultant</div>
-                  <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Own demos, performance scores & Teams connect</div>
+                  <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1a1a1a" }}>Consultant</div>
+                  <div style={{ fontSize: "0.76rem", color: "#aaa" }}>Own demos, performance scores &amp; Teams connect</div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Footer */}
+          <div style={{ textAlign: "center", marginTop: 18, fontSize: "0.72rem", color: "#ccc" }}>
+            Internal use only · Motadata
+          </div>
+
         </div>
       </div>
     </div>

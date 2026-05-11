@@ -8,8 +8,15 @@ function applyTheme(theme) {
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
+    // v3.1 resets everyone to light (Motadata brand theme)
+    const themeVersion = localStorage.getItem("uiThemeVersion");
+    if (themeVersion !== "3.1") {
+      localStorage.setItem("uiTheme", "light");
+      localStorage.setItem("uiThemeVersion", "3.1");
+      return "light";
+    }
     const saved = localStorage.getItem("uiTheme");
-    return saved === "light" || saved === "dark" ? saved : "dark";
+    return saved === "light" || saved === "dark" ? saved : "light";
   });
 
   useEffect(() => {

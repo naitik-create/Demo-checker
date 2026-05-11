@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
+import AppLogo from "../components/AppLogo.jsx";
 
 export default function RegisterPage() {
   const { register, isAuthed, user } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "", role: "consultant" });
   const [showPass, setShowPass] = useState(false);
-  const [state, setState] = useState({ loading: false, error: "" });
+  const [state, setState] = useState({ loading: false, error: "", pendingApproval: false, pendingName: "" });
 
   useEffect(() => {
     if (!isAuthed) return;
@@ -28,12 +29,42 @@ export default function RegisterPage() {
     setState({ loading: true, error: "" });
     try {
       const res = await register({ name: form.name, email: form.email, password: form.password, role: form.role });
+      if (res?.pending) {
+        setState({ loading: false, error: "", pendingApproval: true, pendingName: form.name });
+        return;
+      }
       const role = res?.user?.role;
       if (role === "manager") navigate("/manager/overview");
       else navigate("/consultant");
     } catch (err) {
       setState({ loading: false, error: err.message || "Registration failed. Please try again." });
     }
+  }
+
+  if (state.pendingApproval) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: 24 }}>
+        <div style={{ maxWidth: 480, width: "100%", background: "var(--card-bg)", border: "1px solid var(--card-border)", borderRadius: 16, padding: "40px 36px", textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.1)" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(229,57,53,0.1)", border: "2px solid rgba(229,57,53,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: "1.8rem" }}>⏳</div>
+          <h2 style={{ fontWeight: 800, fontSize: "1.4rem", marginBottom: 10, color: "var(--text-main)" }}>Awaiting Approval</h2>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", lineHeight: 1.7, marginBottom: 24 }}>
+            Hi <strong style={{ color: "var(--text-main)" }}>{state.pendingName}</strong>, your manager account has been created.<br />
+            An existing manager needs to approve your account before you can log in.
+          </p>
+          <div style={{ background: "rgba(229,57,53,0.06)", border: "1px solid rgba(229,57,53,0.2)", borderRadius: 10, padding: "14px 18px", marginBottom: 24, textAlign: "left" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#e53935", marginBottom: 6 }}>What happens next?</div>
+            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-muted)", fontSize: "0.85rem", lineHeight: 1.8 }}>
+              <li>An existing manager will review your registration</li>
+              <li>Once approved, you can log in with your email & password</li>
+              <li>If rejected, contact your administrator</li>
+            </ul>
+          </div>
+          <Link to="/login" style={{ display: "inline-block", padding: "10px 28px", background: "#e53935", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: "0.9rem" }}>
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -45,7 +76,9 @@ export default function RegisterPage() {
         <div className="auth-brand__orb auth-brand__orb--3" />
 
         <div className="auth-brand__content">
-          <div className="auth-brand__logo">🚀</div>
+          <div className="auth-brand__logo" style={{ background: "transparent", border: "none", boxShadow: "none" }}>
+            <AppLogo variant="dark" color="#fff" fontSize="2.2rem" svgSize={26} imgHeight={44} />
+          </div>
           <h2>Join Demo Monitoring</h2>
           <p>
             Create your account to start tracking your presales demos with AI
@@ -79,14 +112,8 @@ export default function RegisterPage() {
       <div className="auth-form-panel">
         <div className="auth-form-inner">
           <div style={{ marginBottom: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: "linear-gradient(135deg, var(--accent), var(--purple))",
-                display: "grid", placeItems: "center", fontSize: "1.2rem",
-                boxShadow: "0 4px 16px var(--accent-glow)"
-              }}>🎯</div>
-              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--text-muted)" }}>Demo Monitoring</span>
+            <div style={{ marginBottom: 16 }}>
+              <AppLogo color="var(--text-main)" fontSize="1.5rem" svgSize={20} imgHeight={30} />
             </div>
             <h1>Create your account</h1>
             <p>Start monitoring your demos with AI in minutes</p>

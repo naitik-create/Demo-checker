@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
+import AppLogo from "./AppLogo.jsx";
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -27,6 +28,7 @@ export default function Sidebar() {
     { to: "/manager/leaderboard",    icon: "🏆", label: "Leaderboard" },
     { to: "/manager/reports",        icon: "📋", label: "Reports" },
     { to: "/manager/presales-report", icon: "🧾", label: "Presales Complete Report" },
+    { to: "/manager/settings",        icon: "⚙️", label: "Settings" },
     { to: "/account",                icon: "👤", label: "Account" },
   ];
 
@@ -42,10 +44,11 @@ export default function Sidebar() {
     <aside className="sidebar">
       {/* Brand */}
       <div className="sidebar__brand">
-        <div className="sidebar__logo">🎯</div>
-        <div>
-          <div className="sidebar__title">Demo Monitoring</div>
-          <div className="sidebar__subtitle">{isConsultant ? "Consultant" : "Manager"} Console</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <AppLogo variant="dark" color="#fff" fontSize="1.3rem" svgSize={16} imgHeight={26} />
+          <div className="sidebar__subtitle" style={{ marginTop: 2 }}>
+            {isConsultant ? "Consultant" : "Manager"} Console
+          </div>
         </div>
       </div>
 

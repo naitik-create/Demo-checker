@@ -5,6 +5,7 @@ const LINKS = [
   { to: "/manager/consultants", label: "Consultants" },
   { to: "/manager/manual-analysis", label: "Manual Analysis" },
   { to: "/manager/reports", label: "Reports" },
+  { to: "/manager/settings", label: "Settings" },
   { to: "/account", label: "Account" }
 ];
 

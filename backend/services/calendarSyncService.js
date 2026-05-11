@@ -68,12 +68,20 @@ export async function syncConsultantCalendarToDb(consultantId) {
 
   let upsertedMeetings = 0;
   for (const evt of events) {
-    const teamsMeetingId = evt?.onlineMeeting?.conferenceId || evt?.onlineMeeting?.joinUrl || evt?.onlineMeeting?.joinWebUrl || evt?.id;
+    // Use the calendar event ID first — it is user-specific, so two consultants invited to the
+    // same meeting get different IDs and there is no unique-constraint conflict on teamsMeetingId.
+    const teamsMeetingId = evt?.id || evt?.onlineMeeting?.conferenceId || evt?.onlineMeeting?.joinUrl || evt?.onlineMeeting?.joinWebUrl;
     if (!teamsMeetingId) continue;
 
     const title = evt?.subject || "Teams meeting";
-    const startTime = evt?.start?.dateTime ? new Date(evt.start.dateTime) : null;
-    const endTime = evt?.end?.dateTime ? new Date(evt.end.dateTime) : null;
+    
+    // Graph API dateTime strings usually lack the 'Z' suffix even if they are UTC.
+    // If we fetched with outlook.timezone="UTC", we MUST append Z to ensure JS treats it as UTC.
+    const startStr = evt?.start?.dateTime;
+    const endStr = evt?.end?.dateTime;
+    const startTime = startStr ? new Date(startStr.endsWith('Z') ? startStr : startStr + 'Z') : null;
+    const endTime = endStr ? new Date(endStr.endsWith('Z') ? endStr : endStr + 'Z') : null;
+    
     if (!startTime || !endTime) continue;
 
     const participants = mapParticipantsFromEvent(evt);

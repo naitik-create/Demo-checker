@@ -11,7 +11,6 @@ import {
 
 import { Meeting, Transcript, AnalysisReport, DemoScore, User } from "../models/index.js";
 
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 function toIso(d) { return new Date(d).toISOString(); }
 
 function mapParticipantsFromEvent(evt) {
@@ -225,23 +224,44 @@ async function analyzeWithAiService(transcriptText) {
 }
 
 function scoreFromAnalysis(analysis) {
-  const sentiment = analysis?.sentiment || "neutral";
-  const questionsCount = Number(analysis?.questionsCount || 0);
-  const prosCount = Array.isArray(analysis?.pros) ? analysis.pros.length : 0;
-  const consCount = Array.isArray(analysis?.cons) ? analysis.cons.length : 0;
-  const tipsCount = Array.isArray(analysis?.tips) ? analysis.tips.length : 0;
-  const summary = `${analysis?.summary || ""} ${analysis?.demoQualityEvaluation || ""}`;
-  const hasNextSteps = /next\s+step|follow[-\s]?up|proposal|pilot|poc|trial|timeline/i.test(summary);
-  const hasPricing = /pricing|price|cost|budget|roi/i.test(summary);
-  const hasObjections = /concern|risk|security|compliance|competitor|unclear/i.test(summary);
+  const kpis = analysis?.structuredDetails || {};
+  const risks = analysis?.riskFlags || {};
 
-  return calculateDemoScores({
-    communicationScore: clamp(10 + (sentiment === "positive" ? 5 : sentiment === "negative" ? -2 : 2) + clamp(prosCount, 0, 6) * 0.8 - clamp(consCount, 0, 6) * 0.4, 0, 20),
-    engagementScore: clamp(8 + clamp(questionsCount, 0, 12) * 0.9 + (hasObjections ? 1.5 : 0), 0, 20),
-    structureScore: clamp(10 + (hasNextSteps ? 5 : 0) + (analysis?.clientName ? 1 : 0) + clamp(tipsCount, 0, 8) * 0.3, 0, 20),
-    technicalScore: clamp(10 + (hasPricing ? 1.5 : 0) + (hasObjections ? 2 : 0), 0, 20),
-    qaScore: clamp(7 + clamp(questionsCount, 0, 14) * 0.85 + (consCount > 3 ? 1 : 0), 0, 20)
-  });
+  const getKPI = (name, weight) => Number(kpis[name]?.score_1_to_5 || 1) * weight;
+
+  const discoveryScore = getKPI("Pain identification", 5) +
+                         getKPI("Current infra and state mapping", 3) +
+                         getKPI("Stakeholder mapping", 4) +
+                         getKPI("Competition identification", 3);
+
+  const rapportScore = getKPI("Agenda setting", 3) +
+                       getKPI("Personalisation", 3) +
+                       getKPI("Active listening signals", 4) +
+                       getKPI("Talk-to-listen ratio", 4);
+
+  const demoScore = getKPI("Relevance of demo flow", 5) +
+                    getKPI("Story-based narrative", 4) +
+                    getKPI("Value articulation", 5) +
+                    getKPI("Handling technical Qs", 3);
+
+  const objectionsScore = getKPI("Objection recognition", 4) +
+                          getKPI("Resolution quality", 4) +
+                          getKPI("Competitor handling", 3) +
+                          getKPI("Price / ROI discussion", 3);
+
+  const engagementScore = getKPI("Questions asked by prospect", 4) +
+                          getKPI("Use case confirmation", 5) +
+                          getKPI("Sentiment tone", 3) +
+                          getKPI("Internal mention", 4);
+
+  const closeScore = getKPI("Clear next step set", 5) +
+                     getKPI("Timeline established", 4) +
+                     getKPI("Mutual action plan", 4);
+
+  const riskCount = Object.values(risks).filter(r => r.present_boolean === true).length;
+  const riskDeduction = riskCount * 5;
+
+  return calculateDemoScores({ discoveryScore, rapportScore, demoScore, objectionsScore, engagementScore, closeScore, riskDeduction });
 }
 
 export async function analyzeAndScoreMeeting(meeting, { transcriptText, source = "unknown" }) {
@@ -259,10 +279,12 @@ export async function analyzeAndScoreMeeting(meeting, { transcriptText, source =
     questionsDetected: Array.isArray(analysis.questionsDetected) ? analysis.questionsDetected : [],
     questionsCount: Number(analysis.questionsCount || 0),
     qaPairs: Array.isArray(analysis.qaPairs) ? analysis.qaPairs : [],
-    demoQualityEvaluation: analysis.demoQualityEvaluation || ""
+    demoQualityEvaluation: analysis.demoQualityEvaluation || "",
+    structuredDetails: analysis.structuredDetails || {},
+    riskFlags: analysis.riskFlags || {}
   });
 
-  const scores = scoreFromAnalysis(analysis);
+  const scores = await scoreFromAnalysis(analysis);
   await DemoScore.upsert({ meetingId: meeting.id, ...scores });
 
   const now = new Date();
@@ -274,16 +296,16 @@ export async function analyzeAndScoreMeeting(meeting, { transcriptText, source =
   return { analysis, scores };
 }
 
-export async function runDemoMonitoringWorkflow({ maxMeetingsToProcess = 10 } = {}) {
+export async function runDemoMonitoringWorkflow({ maxMeetingsToProcess = 50 } = {}) {
   const syncResult = await syncMeetingsForAllConsultants();
 
   const now = new Date();
+  // Pick any meeting marked Is Demo that has ended and hasn't been successfully analyzed yet
   const candidates = await Meeting.findAll({
     where: {
-      monitored: true,
+      isDemo: true,
       endTime: { [Op.lte]: now },
-      status: { [Op.ne]: "completed" },
-      autoAnalyzedAt: null
+      analysisStatus: { [Op.notIn]: ["completed", "pending"] }
     },
     order: [["endTime", "DESC"]],
     limit: maxMeetingsToProcess
@@ -293,45 +315,66 @@ export async function runDemoMonitoringWorkflow({ maxMeetingsToProcess = 10 } = 
 
   for (const meeting of candidates) {
     try {
-      const transcriptResult = await fetchTranscriptForMeeting(meeting);
-      if (!transcriptResult?.text) {
-        await meeting.update({ transcriptStatus: "failed", analysisStatus: "failed" });
-        skipped.push({ meetingId: meeting.id, reason: "No transcript or chat messages available." });
-        continue;
+      // Use existing DB transcript first; fall back to fetching from Teams
+      const existing = await Transcript.findOne({ where: { meetingId: meeting.id } });
+      let transcriptText, source;
+
+      if (existing?.transcriptText) {
+        transcriptText = existing.transcriptText;
+        source = "db";
+      } else {
+        const transcriptResult = await fetchTranscriptForMeeting(meeting);
+        if (!transcriptResult?.text) {
+          await meeting.update({ transcriptStatus: "failed", analysisStatus: "failed" });
+          skipped.push({ meetingId: meeting.id, reason: "No transcript available." });
+          continue;
+        }
+        transcriptText = transcriptResult.text;
+        source = transcriptResult.source;
+        await Transcript.upsert({ meetingId: meeting.id, transcriptText });
       }
 
-      const { text: transcriptText, source } = transcriptResult;
       await meeting.update({ transcriptStatus: "ready", analysisStatus: "pending" });
-      await Transcript.upsert({ meetingId: meeting.id, transcriptText });
-
-      const analysis = await analyzeWithAiService(transcriptText);
-      await AnalysisReport.upsert({
-        meetingId: meeting.id,
-        clientName: analysis.clientName || "",
-        productName: analysis.productName || "",
-        summary: analysis.summary || "",
-        pros: Array.isArray(analysis.pros) ? analysis.pros : [],
-        cons: Array.isArray(analysis.cons) ? analysis.cons : [],
-        tips: Array.isArray(analysis.tips) ? analysis.tips : [],
-        sentiment: analysis.sentiment || "neutral",
-        questionsDetected: Array.isArray(analysis.questionsDetected) ? analysis.questionsDetected : [],
-        questionsCount: Number(analysis.questionsCount || 0),
-        qaPairs: Array.isArray(analysis.qaPairs) ? analysis.qaPairs : [],
-        demoQualityEvaluation: analysis.demoQualityEvaluation || ""
-      });
-
-      const scores = scoreFromAnalysis(analysis);
-      await DemoScore.upsert({ meetingId: meeting.id, ...scores });
-
-      const newRaw = { ...(meeting.raw || {}), workflow: { processedAt: new Date().toISOString(), transcriptSource: source } };
-      await meeting.update({ status: "completed", transcriptStatus: "ready", analysisStatus: "completed", autoAnalyzedAt: new Date(), raw: newRaw });
+      const { scores } = await analyzeAndScoreMeeting(meeting, { transcriptText, source });
+      await meeting.update({ autoAnalyzedAt: new Date() });
 
       processed.push({ meetingId: meeting.id, transcriptSource: source, totalScore: scores.totalScore });
     } catch (err) {
-      await meeting.update({ transcriptStatus: "failed", analysisStatus: "failed" });
+      await meeting.update({ analysisStatus: "failed" });
       skipped.push({ meetingId: meeting.id, reason: err?.message || "Processing failed" });
     }
   }
 
   return { sync: { ...syncResult }, detectedCompletedMeetings: candidates.length, processed, skipped };
+}
+
+export async function analyzeIsDemoMeetingInBackground(meeting) {
+  try {
+    const now = new Date();
+    if (!meeting.endTime || new Date(meeting.endTime) > now) return;
+    if (meeting.analysisStatus === "completed") return;
+
+    const existing = await Transcript.findOne({ where: { meetingId: meeting.id } });
+    let transcriptText, source;
+
+    if (existing?.transcriptText) {
+      transcriptText = existing.transcriptText;
+      source = "db";
+    } else {
+      const result = await fetchTranscriptForMeeting(meeting);
+      if (!result?.text) {
+        await meeting.update({ analysisStatus: "failed" });
+        return;
+      }
+      transcriptText = result.text;
+      source = result.source;
+      await Transcript.upsert({ meetingId: meeting.id, transcriptText });
+    }
+
+    await meeting.update({ transcriptStatus: "ready", analysisStatus: "pending" });
+    await analyzeAndScoreMeeting(meeting, { transcriptText, source });
+    await meeting.update({ autoAnalyzedAt: new Date() });
+  } catch {
+    await meeting.update({ analysisStatus: "failed" }).catch(() => {});
+  }
 }

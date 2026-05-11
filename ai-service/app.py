@@ -1,5 +1,17 @@
+import os
+from pathlib import Path
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+# Load .env from ai-service directory
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _, _v = _line.partition("=")
+                os.environ.setdefault(_k.strip(), _v.strip())
 
 from transcription import transcribe_audio_bytes
 from analysis import analyze_transcript

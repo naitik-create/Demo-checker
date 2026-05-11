@@ -7,7 +7,8 @@ import {
   teamsConnectRedirectUrl
 } from "../services/msGraphAuthService.js";
 import { getUserProfile, getUserCalendarMeetings } from "../services/userGraphService.js";
-import { User } from "../models/index.js";
+import { Op } from "sequelize";
+import { User, Meeting } from "../models/index.js";
 import { syncConsultantCalendarToDb } from "../services/calendarSyncService.js";
 
 export function getTeamsConnectUrl(req, res, next) {
@@ -158,18 +159,47 @@ export async function getMyTeamsData(req, res, next) {
       return res.json({ ok: true, connected: false, profile: null, calendarMeetings: [], onlineMeetings: [] });
     }
 
+    const fromQ = req.query.from;
+    const toQ   = req.query.to;
+    let calendarOpts = { pastDays: 30, futureDays: 30 };
+    if (typeof fromQ === "string" && typeof toQ === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fromQ) && /^\d{4}-\d{2}-\d{2}$/.test(toQ)) {
+      const start = new Date(`${fromQ}T00:00:00.000Z`);
+      const end   = new Date(`${toQ}T23:59:59.999Z`);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start) {
+        calendarOpts = { startDateTime: start.toISOString(), endDateTime: end.toISOString() };
+      }
+    }
+
+    let calendarError = null;
     const [profile, calendarMeetings] = await Promise.all([
       getUserProfile(userId).catch((e) => { console.warn("[getMyTeamsData] profile failed:", e.message); return null; }),
-      getUserCalendarMeetings(userId, { pastDays: 1, futureDays: 1 }).catch((e) => { console.warn("[getMyTeamsData] calendarMeetings failed:", e.message); return []; })
+      getUserCalendarMeetings(userId, calendarOpts).catch((e) => {
+        console.warn("[getMyTeamsData] calendarMeetings failed:", e.message);
+        calendarError = e.response?.data?.error?.message || e.message || "Could not load calendar from Microsoft Teams.";
+        return [];
+      })
     ]);
+
+    // Enrich calendar meetings with isDemo flag from DB
+    let enrichedMeetings = calendarMeetings;
+    const calIds = calendarMeetings.map(m => m.id).filter(Boolean);
+    if (calIds.length > 0) {
+      const dbFlags = await Meeting.findAll({
+        where: { teamsMeetingId: { [Op.in]: calIds }, consultantId: userId },
+        attributes: ["teamsMeetingId", "isDemo"]
+      });
+      const demoMap = new Map(dbFlags.map(m => [m.teamsMeetingId, m.isDemo || false]));
+      enrichedMeetings = calendarMeetings.map(m => ({ ...m, isDemo: demoMap.get(m.id) || false }));
+    }
 
     res.json({
       ok: true,
       connected: true,
+      calendarError: calendarError || null,
       profile: profile
         ? { id: profile.id, displayName: profile.displayName, email: profile.mail || profile.userPrincipalName, jobTitle: profile.jobTitle, department: profile.department, officeLocation: profile.officeLocation, phone: profile.mobilePhone }
         : { id: u.msUserId, displayName: u.msDisplayName, email: u.msUpn, jobTitle: u.msJobTitle, department: u.msDepartment, officeLocation: u.msOfficeLocation },
-      calendarMeetings
+      calendarMeetings: enrichedMeetings
     });
   } catch (err) {
     next(err);

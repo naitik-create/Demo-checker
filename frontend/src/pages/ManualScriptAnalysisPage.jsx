@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client.js";
 import { useAuth } from "../auth/AuthContext.jsx";
+import { parseTranscriptFile } from "../utils/transcriptParser.js";
 import ManagerSubNav from "../components/ManagerSubNav.jsx";
 
 function truncate(value, maxLength) {
@@ -27,6 +28,27 @@ export default function ManualScriptAnalysisPage() {
     consultants: [],
     reports: []
   });
+  const [uploadedFile, setUploadedFile] = useState(null); // { name, error }
+  const [fileLoading, setFileLoading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileLoading(true);
+    setUploadedFile(null);
+    try {
+      const text = await parseTranscriptFile(file);
+      if (!text || text.trim().length < 50) throw new Error("File is too short or empty.");
+      setForm((curr) => ({ ...curr, script: text }));
+      setUploadedFile({ name: file.name, error: null });
+    } catch (err) {
+      setUploadedFile({ name: file.name, error: err.message || "Could not read file." });
+    } finally {
+      setFileLoading(false);
+      e.target.value = "";
+    }
+  }
 
   const canPickConsultant = useMemo(
     () => user?.role === "manager" || user?.role === "admin",
@@ -188,17 +210,37 @@ export default function ManualScriptAnalysisPage() {
               </select>
             </label>
 
-            <label className="field">
-              <div className="field__label">Transcript</div>
+            <div className="field">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <div className="field__label" style={{ margin: 0 }}>Transcript</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {uploadedFile && !uploadedFile.error && (
+                    <span style={{ fontSize: "0.75rem", color: "#4ade80", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ opacity: 0.7 }}>File:</span> {uploadedFile.name}
+                      <button type="button" onClick={() => { setUploadedFile(null); setForm((c) => ({ ...c, script: "" })); }}
+                        style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: "0.8rem", padding: "0 2px" }}>x</button>
+                    </span>
+                  )}
+                  {uploadedFile?.error && (
+                    <span style={{ fontSize: "0.75rem", color: "#f87171" }}>{uploadedFile.error}</span>
+                  )}
+                  <input ref={fileInputRef} type="file" accept=".txt,.srt,.json,.docx,.doc" style={{ display: "none" }} onChange={handleFileChange} />
+                  <button type="button" className="btn btn--ghost" disabled={fileLoading || state.loading}
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ padding: "4px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: 6 }}>
+                    {fileLoading ? "Reading..." : "Upload File"}
+                  </button>
+                </div>
+              </div>
               <textarea
                 className="input"
                 value={form.script}
                 onChange={(e) => setForm((current) => ({ ...current, script: e.target.value }))}
-                placeholder="Paste the full transcript here..."
+                placeholder="Paste the full transcript here, or use Upload File above (.txt .srt .json .docx)..."
                 required
                 style={{ minHeight: 260 }}
               />
-            </label>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
               <div className="kpi kpi--blue">

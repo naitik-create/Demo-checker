@@ -1,7 +1,7 @@
 import { Op } from "sequelize";
 import { Meeting, User, Transcript, AnalysisReport, DemoScore } from "../models/index.js";
 import { runManualTranscriptAnalysis } from "../services/manualTranscriptAnalysisService.js";
-import { analyzeAndScoreMeeting, fetchTranscriptForMeetingResult } from "../services/demoMonitoringWorkflow.js";
+import { analyzeAndScoreMeeting, fetchTranscriptForMeetingResult, analyzeIsDemoMeetingInBackground } from "../services/demoMonitoringWorkflow.js";
 import { syncAllConsultantsCalendarsToDb, syncConsultantCalendarToDb } from "../services/calendarSyncService.js";
 
 function badRequest(message) {
@@ -129,13 +129,17 @@ export async function meetingReport(req, res, next) {
       questionsDetected: analysisReport?.questionsDetected || [],
       qaPairs: analysisReport?.qaPairs || [],
       demoQualityEvaluation: analysisReport?.demoQualityEvaluation || "",
+      structuredDetails: analysisReport?.structuredDetails || {},
+      riskFlags: analysisReport?.riskFlags || {},
       scores: demoScore
         ? {
-            communicationScore: demoScore.communicationScore,
+            discoveryScore: demoScore.discoveryScore,
+            rapportScore: demoScore.rapportScore,
+            demoScore: demoScore.demoScore,
+            objectionsScore: demoScore.objectionsScore,
             engagementScore: demoScore.engagementScore,
-            structureScore: demoScore.structureScore,
-            technicalScore: demoScore.technicalScore,
-            qaScore: demoScore.qaScore,
+            closeScore: demoScore.closeScore,
+            riskDeduction: demoScore.riskDeduction,
             totalScore: demoScore.totalScore
           }
         : null
@@ -147,19 +151,17 @@ export async function meetingReport(req, res, next) {
 
 export async function manualAnalyzeMeeting(req, res, next) {
   try {
-    if (!["manager", "admin"].includes(req.user?.role)) {
-      const err = new Error("Forbidden");
-      err.status = 403;
-      throw err;
-    }
-
     const { meetingId, transcriptText } = req.body || {};
     if (!meetingId) throw badRequest("meetingId is required");
     if (!transcriptText || !String(transcriptText).trim()) throw badRequest("transcriptText is required");
 
-    const meeting = await Meeting.findOne({ where: { id: meetingId }, attributes: ["id", "title"] });
+    const isManagerOrAdmin = ["manager", "admin"].includes(req.user?.role);
+    const where = { id: meetingId };
+    if (!isManagerOrAdmin) where.consultantId = req.user?.id;
+
+    const meeting = await Meeting.findOne({ where, attributes: ["id", "title", "consultantId"] });
     if (!meeting) {
-      const err = new Error("Meeting not found");
+      const err = new Error("Meeting not found or access denied");
       err.status = 404;
       throw err;
     }
@@ -167,10 +169,12 @@ export async function manualAnalyzeMeeting(req, res, next) {
     const result = await runManualTranscriptAnalysis({ meetingId: meeting.id, transcriptText: String(transcriptText) });
 
     const clientName = result.analysis.clientName || "";
+    const titleUpdate = { analysisStatus: "completed", transcriptStatus: "ready" };
     if (!meeting.title || meeting.title === "Teams meeting" || meeting.title === "Meeting") {
       const suffix = clientName ? ` - ${clientName}` : "";
-      await meeting.update({ title: `Demo${suffix}`.slice(0, 120) });
+      titleUpdate.title = `Demo${suffix}`.slice(0, 120);
     }
+    await meeting.update(titleUpdate);
 
     res.status(201).json({
       ok: true,
@@ -178,6 +182,106 @@ export async function manualAnalyzeMeeting(req, res, next) {
       analysis: result.analysis,
       scores: result.scores
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function reAnalyzeMeeting(req, res, next) {
+  try {
+    const { meetingId } = req.params;
+    if (!meetingId) throw badRequest("meetingId is required");
+
+    const meeting = await Meeting.findOne({ where: { id: meetingId } });
+    if (!meeting) throw badRequest("Meeting not found");
+
+    // Consultants can only re-analyze their own meetings; managers/admins can re-analyze any
+    const isManagerOrAdmin = ["manager", "admin"].includes(req.user?.role);
+    if (!isManagerOrAdmin && meeting.consultantId !== req.user?.id) {
+      const err = new Error("Forbidden: you can only re-analyze your own meetings");
+      err.status = 403;
+      throw err;
+    }
+
+    const transcript = await Transcript.findOne({ where: { meetingId: meeting.id } });
+    if (!transcript || !transcript.transcriptText) {
+      throw badRequest("No transcript text found to re-analyze");
+    }
+
+    // Trigger re-analysis using existing transcript
+    const result = await runManualTranscriptAnalysis({ 
+      meetingId: meeting.id, 
+      transcriptText: transcript.transcriptText 
+    });
+
+    await meeting.update({ analysisStatus: "completed" });
+
+    res.json({
+      ok: true,
+      message: "Re-analysis completed successfully",
+      analysis: result.analysis,
+      scores: result.scores
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function upsertDemoFlag(req, res, next) {
+  try {
+    const { teamsMeetingId, isDemo, title, startTime, endTime, joinUrl } = req.body;
+    if (!teamsMeetingId) throw badRequest("teamsMeetingId is required");
+    const consultantId = req.user.id;
+    let meeting = await Meeting.findOne({ where: { teamsMeetingId: String(teamsMeetingId), consultantId } });
+    if (!meeting) {
+      meeting = await Meeting.create({
+        title: title || "Teams Meeting",
+        teamsMeetingId: String(teamsMeetingId),
+        consultantId,
+        startTime: startTime ? new Date(startTime) : new Date(),
+        endTime: endTime ? new Date(endTime) : new Date(Date.now() + 3600000),
+        status: "scheduled",
+        monitored: false,
+        transcriptStatus: "not_requested",
+        analysisStatus: "not_started",
+        isDemo: Boolean(isDemo),
+        raw: { joinUrl: joinUrl || null }
+      });
+    } else {
+      await meeting.update({ isDemo: Boolean(isDemo) });
+    }
+    res.json({ ok: true, id: meeting.id, teamsMeetingId: meeting.teamsMeetingId, isDemo: meeting.isDemo });
+
+    // When Is Demo is switched ON, immediately try to analyze in background
+    if (Boolean(isDemo) && meeting.analysisStatus !== "completed") {
+      analyzeIsDemoMeetingInBackground(meeting).catch(() => {});
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function toggleIsDemo(req, res, next) {
+  try {
+    const { meetingId } = req.params;
+    if (!meetingId) throw badRequest("meetingId is required");
+
+    const where = { id: meetingId };
+    if (!canManageAllMeetings(req)) where.consultantId = req.user?.id;
+
+    const meeting = await Meeting.findOne({ where });
+    if (!meeting) {
+      const err = new Error("Meeting not found");
+      err.status = 404;
+      throw err;
+    }
+
+    await meeting.update({ isDemo: Boolean(req.body.isDemo) });
+    res.json({ ok: true, id: meeting.id, isDemo: meeting.isDemo });
+
+    if (Boolean(req.body.isDemo) && meeting.analysisStatus !== "completed") {
+      analyzeIsDemoMeetingInBackground(meeting).catch(() => {});
+    }
   } catch (err) {
     next(err);
   }
@@ -216,13 +320,24 @@ export async function deleteMeeting(req, res, next) {
 
 export async function listMeetings(req, res, next) {
   try {
-    const limit = Math.min(Number(req.query.limit || 50), 200);
+    const limit = Math.min(Number(req.query.limit || 50), 1000);
     const where = {};
 
     if (req.user?.role === "consultant") {
       where.consultantId = req.user.id;
     } else if (req.query.consultantId) {
       where.consultantId = req.query.consultantId;
+    }
+
+    if (req.query.from) {
+      where.startTime = where.startTime || {};
+      where.startTime[Op.gte] = new Date(req.query.from);
+    }
+    if (req.query.to) {
+      const toDate = new Date(req.query.to);
+      toDate.setHours(23, 59, 59, 999);
+      where.startTime = where.startTime || {};
+      where.startTime[Op.lte] = toDate;
     }
 
     const [total, meetings] = await Promise.all([
@@ -256,17 +371,20 @@ export async function listMeetings(req, res, next) {
           joinedAt: m.joinedAt || null,
           transcriptStatus: m.transcriptStatus || "not_requested",
           analysisStatus: m.analysisStatus || "not_started",
+          isDemo: m.isDemo || false,
           joinUrl: m.raw?.joinUrl || null,
           consultant: m.consultant
             ? { id: m.consultant.id, name: m.consultant.name, email: m.consultant.email, role: m.consultant.role }
             : null,
           score: score
             ? {
-                communicationScore: score.communicationScore,
+                discoveryScore: score.discoveryScore,
+                rapportScore: score.rapportScore,
+                demoScore: score.demoScore,
+                objectionsScore: score.objectionsScore,
                 engagementScore: score.engagementScore,
-                structureScore: score.structureScore,
-                technicalScore: score.technicalScore,
-                qaScore: score.qaScore,
+                closeScore: score.closeScore,
+                riskDeduction: score.riskDeduction,
                 totalScore: score.totalScore
               }
             : null

@@ -27,6 +27,8 @@ dotenv.config({ override: true });
 const TENANT_ID = process.env.AZURE_TENANT_ID;
 const CLIENT_ID = process.env.AZURE_CLIENT_ID;
 const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET;
+const REDIRECT_URI = process.env.AZURE_REDIRECT_URI || "http://localhost:5000/api/teams/oauth/callback";
+const DELEGATED_SCOPES = process.env.AZURE_SCOPE || "offline_access User.Read Calendars.Read OnlineMeetings.Read OnlineMeetingTranscript.Read Chat.Read";
 const GRAPH_BASE = "https://graph.microsoft.com";
 
 /**
@@ -72,7 +74,9 @@ export async function getOrRefreshUserToken(userId) {
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
     grant_type: "refresh_token",
-    refresh_token: user.msRefreshToken
+    refresh_token: user.msRefreshToken,
+    redirect_uri: REDIRECT_URI,
+    scope: DELEGATED_SCOPES
   });
 
   let res;
@@ -166,16 +170,14 @@ export async function getUserCalendarMeetings(
       }
     });
 
-    const events = (res.data?.value || []).filter(
-      (e) =>
-        e.isOnlineMeeting === true &&
-        (e.onlineMeetingProvider === "teamsForBusiness" || e.onlineMeeting?.joinUrl || e.onlineMeeting?.joinWebUrl)
-    );
+    // Show all calendar events — don't filter by isOnlineMeeting so recurring meetings
+    // and manually-linked Teams meetings are not excluded
+    const events = res.data?.value || [];
     return events.map((e) => ({
       id: e.id,
       subject: e.subject || "Teams Meeting",
-      startTime: e.start?.dateTime,
-      endTime: e.end?.dateTime,
+      startTime: graphDateTimeToUtcIso(e.start?.dateTime),
+      endTime: graphDateTimeToUtcIso(e.end?.dateTime),
       startTimeZone: e.start?.timeZone || "UTC",
       endTimeZone: e.end?.timeZone || "UTC",
       startTimeIso: graphDateTimeToUtcIso(e.start?.dateTime),
@@ -190,10 +192,9 @@ export async function getUserCalendarMeetings(
       bodyPreview: e.bodyPreview || ""
     }));
   } catch (err) {
-    // Return empty array if calendar is inaccessible (e.g. permission not yet granted)
-    // eslint-disable-next-line no-console
-    console.warn("[userGraphService] calendarView failed:", err.response?.data?.error?.message || err.message);
-    return [];
+    const detail = err.response?.data?.error?.message || err.message;
+    console.error("[userGraphService] calendarView FAILED for user", userId, "→", detail);
+    throw err;
   }
 }
 

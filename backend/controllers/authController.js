@@ -29,12 +29,25 @@ export async function register(req, res, next) {
       throw err;
     }
 
+    const assignedRole = role === "manager" ? "manager" : "consultant";
+    const approvalStatus = assignedRole === "manager" ? "pending" : "approved";
+
     const user = await User.create({
       name: String(name).trim(),
       email: normalizedEmail,
       password: String(password),
-      role: role === "manager" ? "manager" : "consultant"
+      role: assignedRole,
+      approvalStatus
     });
+
+    // Manager accounts need approval before they can log in
+    if (approvalStatus === "pending") {
+      return res.status(201).json({
+        ok: true,
+        pending: true,
+        message: "Your manager account has been created and is awaiting approval from an existing manager."
+      });
+    }
 
     const token = signToken(user);
     res.status(201).json({
@@ -65,6 +78,17 @@ export async function login(req, res, next) {
     if (!ok) {
       const err = new Error("Invalid credentials");
       err.status = 401;
+      throw err;
+    }
+
+    if (user.approvalStatus === "pending") {
+      const err = new Error("Your account is pending approval by an existing manager. You will be able to log in once approved.");
+      err.status = 403;
+      throw err;
+    }
+    if (user.approvalStatus === "rejected") {
+      const err = new Error("Your account registration was rejected. Please contact your administrator.");
+      err.status = 403;
       throw err;
     }
 

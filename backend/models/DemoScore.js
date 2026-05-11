@@ -6,11 +6,14 @@ export const DemoScore = sequelize.define(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     meetingId: { type: DataTypes.UUID, allowNull: false, unique: true, references: { model: "meetings", key: "id" } },
-    communicationScore: { type: DataTypes.FLOAT, defaultValue: 0, validate: { min: 0, max: 20 } },
-    engagementScore: { type: DataTypes.FLOAT, defaultValue: 0, validate: { min: 0, max: 20 } },
-    structureScore: { type: DataTypes.FLOAT, defaultValue: 0, validate: { min: 0, max: 20 } },
-    technicalScore: { type: DataTypes.FLOAT, defaultValue: 0, validate: { min: 0, max: 20 } },
-    qaScore: { type: DataTypes.FLOAT, defaultValue: 0, validate: { min: 0, max: 20 } },
+    discoveryScore: { type: DataTypes.FLOAT, defaultValue: 0 },
+    rapportScore: { type: DataTypes.FLOAT, defaultValue: 0 },
+    demoScore: { type: DataTypes.FLOAT, defaultValue: 0 },
+    objectionsScore: { type: DataTypes.FLOAT, defaultValue: 0 },
+    engagementScore: { type: DataTypes.FLOAT, defaultValue: 0 },
+    closeScore: { type: DataTypes.FLOAT, defaultValue: 0 },
+    riskDeduction: { type: DataTypes.FLOAT, defaultValue: 0 },
+    weightedTotal: { type: DataTypes.FLOAT, defaultValue: 0 },
     totalScore: { type: DataTypes.FLOAT, defaultValue: 0, validate: { min: 0, max: 100 } }
   },
   {
@@ -18,9 +21,11 @@ export const DemoScore = sequelize.define(
     timestamps: true,
     hooks: {
       beforeSave: (doc) => {
-        const scores = [doc.communicationScore, doc.engagementScore, doc.structureScore, doc.technicalScore, doc.qaScore]
-          .map((n) => (typeof n === "number" ? n : 0));
-        doc.totalScore = scores.reduce((a, b) => a + b, 0);
+        const sum = (doc.discoveryScore || 0) + (doc.rapportScore || 0) + (doc.demoScore || 0) + 
+                    (doc.objectionsScore || 0) + (doc.engagementScore || 0) + (doc.closeScore || 0);
+        doc.weightedTotal = sum;
+        const adjusted = sum - (doc.riskDeduction || 0);
+        doc.totalScore = Math.max(0, Math.min(100, Math.round((adjusted / 445) * 100)));
       }
     }
   }

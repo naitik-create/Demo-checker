@@ -156,34 +156,15 @@ export async function handleVideoUpload(req, res, next) {
 
     await Transcript.upsert({ meetingId: meeting.id, transcriptText });
 
-    const [reportDoc] = await AnalysisReport.upsert({
-      meetingId: meeting.id,
-      clientName: analysis.clientName || "",
-      summary: analysis.summary || "",
-      pros: Array.isArray(analysis.pros) ? analysis.pros : [],
-      cons: Array.isArray(analysis.cons) ? analysis.cons : [],
-      tips: Array.isArray(analysis.tips) ? analysis.tips : [],
-      sentiment: analysis.sentiment || "neutral",
-      questionsDetected: Array.isArray(analysis.questionsDetected) ? analysis.questionsDetected : [],
-      questionsCount: Number(analysis.questionsCount || 0),
-      demoQualityEvaluation: analysis.demoQualityEvaluation || ""
-    }, { returning: true });
-
-    const scores = calculateDemoScores({
-      communicationScore: 12 + (analysis.sentiment === "positive" ? 4 : analysis.sentiment === "negative" ? -3 : 0),
-      engagementScore: Math.min(10 + Number(analysis.questionsCount || 0), 20),
-      structureScore: 12,
-      technicalScore: 12,
-      qaScore: Math.min(8 + Number(analysis.questionsCount || 0), 20)
-    });
-    const [scoreDoc] = await DemoScore.upsert({ meetingId: meeting.id, ...scores }, { returning: true });
+    const { runManualTranscriptAnalysis } = await import("../services/manualTranscriptAnalysisService.js");
+    const result = await runManualTranscriptAnalysis({ meetingId: meeting.id, transcriptText });
 
     res.status(201).json({
       ok: true,
       meeting: { id: meeting.id, title: meeting.title },
       transcript: transcriptText,
-      analysis: reportDoc,
-      scores: scoreDoc
+      analysis: result.analysis,
+      scores: result.scores
     });
   } catch (err) {
     next(err);

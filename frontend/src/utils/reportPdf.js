@@ -8,42 +8,16 @@ function safeText(value, fallback = "-") {
 }
 
 function lineItems(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => safeText(item)).filter(Boolean);
-  }
-  return String(value || "")
-    .split(/\r?\n/)
-    .map((item) => item.replace(/^\s*[-*]\s*/, "").trim())
-    .filter(Boolean);
-}
-
-function sentimentLabel(sentiment) {
-  const value = String(sentiment || "").toLowerCase();
-  if (value === "positive") return "Positive";
-  if (value === "negative") return "Negative";
-  return "Neutral";
+  if (Array.isArray(value)) return value.map(i => safeText(i)).filter(Boolean);
+  return String(value || "").split(/\r?\n/).map(i => i.replace(/^\s*[-*]\s*/, "").trim()).filter(Boolean);
 }
 
 function addSectionTitle(doc, title, y) {
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
+  doc.setFontSize(14);
+  doc.setTextColor(31, 41, 55);
   doc.text(title, 40, y);
-  return y + 12;
-}
-
-function addWrappedText(doc, text, y, opts = {}) {
-  const {
-    maxWidth = 515,
-    fontSize = 10,
-    lineHeight = 14,
-    fallback = "-"
-  } = opts;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(fontSize);
-  const lines = doc.splitTextToSize(safeText(text, fallback), maxWidth);
-  doc.text(lines, 40, y);
-  return y + lines.length * lineHeight;
+  return y + 14;
 }
 
 function ensureSpace(doc, y, neededHeight = 40) {
@@ -57,237 +31,126 @@ export function downloadMeetingReportPdf(report) {
   const doc = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
   const meeting = report?.meeting || {};
   const consultant = report?.consultant || {};
-  const scores = report?.scores || {};
   const kpiAssessment = buildDemoKpiAssessment(report);
   let y = 40;
 
+  // Header
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text("Demo Analysis Report", 40, y);
-  y += 18;
+  doc.setFontSize(20);
+  doc.setTextColor(37, 99, 235);
+  doc.text("Presales Demo Evaluation Report", 40, y);
+  y += 24;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text(`Generated on ${new Date().toLocaleString("en-IN")}`, 40, y);
-  y += 22;
+  doc.setTextColor(107, 114, 128);
+  doc.text(`Framework: Authoritative 7-Dimension, 23-KPI Scoring · Generated: ${new Date().toLocaleString("en-IN")}`, 40, y);
+  y += 28;
 
-  y = addSectionTitle(doc, "Meeting Details", y);
+  // Meeting & Consultant Metadata
+  y = addSectionTitle(doc, "Evaluation Context", y);
   autoTable(doc, {
-    startY: y,
-    theme: "grid",
-    margin: { left: 40, right: 40 },
-    head: [["Field", "Value"]],
+    startY: y, theme: "grid", margin: { left: 40, right: 40 },
     body: [
-      ["Title", safeText(meeting.title)],
-      ["Start", meeting.startTime ? new Date(meeting.startTime).toLocaleString("en-IN") : "-"],
-      ["End", meeting.endTime ? new Date(meeting.endTime).toLocaleString("en-IN") : "-"],
-      ["Status", safeText(meeting.status)],
-      ["Consultant", safeText(consultant.name)],
-      ["Consultant Email", safeText(consultant.email)],
-      ["Client", safeText(report?.clientName)],
-      ["Product", safeText(report?.productName)]
+      ["Meeting Title", safeText(meeting.title), "Consultant", safeText(consultant.name)],
+      ["Client Name", safeText(report?.clientName), "Product", safeText(report?.productName)],
+      ["Start Time", meeting.startTime ? new Date(meeting.startTime).toLocaleString("en-IN") : "-", "Verdict", kpiAssessment.verdict]
     ],
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontSize: 10 },
-    styles: { fontSize: 10, cellPadding: 5 }
-  });
-  y = doc.lastAutoTable.finalY + 18;
-
-  y = ensureSpace(doc, y, 180);
-  y = addSectionTitle(doc, `${kpiAssessment.productSummary.title}`, y);
-  autoTable(doc, {
-    startY: y,
-    theme: "grid",
-    margin: { left: 40, right: 40 },
-    head: [["Area", "Details"]],
-    body: [
-      ["Product family", safeText(kpiAssessment.productSummary.family)],
-      ["Manager lens", kpiAssessment.productSummary.executiveLens.join("\n")],
-      ["Discovery questions", kpiAssessment.productSummary.discoveryQuestions.join("\n")],
-      ["Expected proof points", kpiAssessment.productSummary.demoProofPoints.join("\n")],
-      ["Success signals", kpiAssessment.productSummary.successSignals.join("\n")]
-    ],
-    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 10 },
-    styles: { fontSize: 9, cellPadding: 5, overflow: "linebreak" },
-    columnStyles: {
-      0: { cellWidth: 120 },
-      1: { cellWidth: 395 }
-    }
-  });
-  y = doc.lastAutoTable.finalY + 18;
-
-  y = ensureSpace(doc, y, 180);
-  y = addSectionTitle(doc, "Demo & Discovery KPI Framework", y);
-  autoTable(doc, {
-    startY: y,
-    theme: "grid",
-    margin: { left: 40, right: 40 },
-    head: [["Metric", "Value"]],
-    body: [
-      ["Dimensions", "7"],
-      ["Scored KPIs", String(kpiAssessment.scoredKpis)],
-      ["Risk Checks", String(kpiAssessment.totalKpis - kpiAssessment.scoredKpis)],
-      ["Raw KPI Score", `${kpiAssessment.rawScore}/${kpiAssessment.rawMax}`],
-      ["Weighted Performance", `${kpiAssessment.weightedPerformance}/100 (${kpiAssessment.weightedScore}/${kpiAssessment.weightedMax})`],
-      ["Risk Deduction", `-${kpiAssessment.riskDeductionPoints} (${kpiAssessment.riskCount} flag(s) x 5)`],
-      ["Executive KPI Rating", `${kpiAssessment.finalScore}/100`],
-      ["Active Risk Flags", String(kpiAssessment.riskCount)]
-    ],
-    headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 10 },
-    styles: { fontSize: 10, cellPadding: 5 }
-  });
-  y = doc.lastAutoTable.finalY + 18;
-
-  autoTable(doc, {
-    startY: y,
-    theme: "grid",
-    margin: { left: 40, right: 40 },
-    head: [["Dimension", "Theme", "Average", "Weighted Result"]],
-    body: kpiAssessment.dimensions.map((dimension) => [
-      dimension.label,
-      dimension.subtitle,
-      dimension.risk ? `${dimension.riskPresentCount} flag(s)` : `${dimension.averageScore}/5`,
-      dimension.risk ? `${dimension.riskPresentCount}/${dimension.kpis.length} triggered` : `${dimension.weightedScore}/${dimension.weightedMax}`
-    ]),
-    headStyles: { fillColor: [2, 132, 199], textColor: 255, fontSize: 10 },
     styles: { fontSize: 9, cellPadding: 5 }
   });
-  y = doc.lastAutoTable.finalY + 18;
+  y = doc.lastAutoTable.finalY + 24;
 
-  y = ensureSpace(doc, y, 140);
-  y = addSectionTitle(doc, "KPI Scores", y);
+  // Final Scoring Summary
+  y = addSectionTitle(doc, "Executive Scoring Summary", y);
   autoTable(doc, {
-    startY: y,
-    theme: "grid",
-    margin: { left: 40, right: 40 },
-    head: [["Metric", "Score"]],
+    startY: y, theme: "grid", margin: { left: 40, right: 40 },
+    head: [["Performance Metric", "Value", "Notes"]],
     body: [
-      ["Communication", scores.communicationScore ?? "-"],
-      ["Engagement", scores.engagementScore ?? "-"],
-      ["Structure", scores.structureScore ?? "-"],
-      ["Technical", scores.technicalScore ?? "-"],
-      ["Q&A", scores.qaScore ?? "-"],
-      ["Total", scores.totalScore ?? "-"],
-      ["Sentiment", sentimentLabel(report?.sentiment)],
-      ["Questions Count", report?.questionsCount ?? 0]
+      ["Final KPI Score", `${kpiAssessment.finalScore}/100`, "Normalized result (0-100%)"],
+      ["Weighted Performance", `${kpiAssessment.weightedScore}/${kpiAssessment.weightedMax}`, "Total weighted points from all KPIs"],
+      ["Risk Deductions", `-${kpiAssessment.riskDeductionPoints}`, `${kpiAssessment.riskCount} flag(s) identified @ -5 each`],
+      ["Adjusted Total Points", String(kpiAssessment.adjustedScore), "Points after risk deduction"]
     ],
-    headStyles: { fillColor: [16, 185, 129], textColor: 255, fontSize: 10 },
-    styles: { fontSize: 10, cellPadding: 5 }
+    headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+    styles: { fontSize: 10, cellPadding: 6 }
   });
-  y = doc.lastAutoTable.finalY + 18;
+  y = doc.lastAutoTable.finalY + 24;
 
-  for (const dimension of kpiAssessment.dimensions) {
-    y = ensureSpace(doc, y, 180);
-    y = addSectionTitle(doc, `${dimension.label} KPI Detail`, y);
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      margin: { left: 40, right: 40 },
-      head: [["KPI", "Priority", "Score", "Why This Score", "Proper vs Not Proper", "Not Covered / Gap"]],
-      body: dimension.kpis.map((kpi) => [
-        `${kpi.label}\n${kpi.detail}`,
-        `x${kpi.priority}`,
-        dimension.risk ? (kpi.present ? "Present" : "Clear") : `${kpi.score}/5`,
-        [
-          safeText(kpi.rationale),
-          kpi.guide ? `${kpi.guide.label}: ${kpi.guide.definition}` : "",
-          kpi.guide ? `Signal: ${kpi.guide.signal}` : "",
-          kpi.guide ? `Action: ${kpi.guide.action}` : "",
-          ...(Array.isArray(kpi.covered) ? kpi.covered.map((item) => `Covered: ${item}`) : [])
-        ].filter(Boolean).join("\n"),
-        [
-          safeText(kpi.proper),
-          "",
-          safeText(kpi.improper),
-          ...(Array.isArray(kpi.questionnaire) ? kpi.questionnaire.map((item) => `Manager check: ${item}`) : [])
-        ].filter(Boolean).join("\n"),
-        Array.isArray(kpi.missing) && kpi.missing.length
-          ? kpi.missing.map((item) => `Gap: ${item}`).join("\n")
-          : "No major gap flagged"
-      ]),
-      headStyles: {
-        fillColor: dimension.risk ? [153, 27, 27] : [15, 118, 110],
-        textColor: 255,
-        fontSize: 9
-      },
-      styles: { fontSize: 8.5, cellPadding: 5, overflow: "linebreak" },
-      columnStyles: {
-        0: { cellWidth: 95 },
-        1: { cellWidth: 42 },
-        2: { cellWidth: 42 },
-        3: { cellWidth: 110 },
-        4: { cellWidth: 120 },
-        5: { cellWidth: 126 }
-      }
+  // Dimension Breakdown Table
+  y = ensureSpace(doc, y, 150);
+  y = addSectionTitle(doc, "Dimension-wise Breakdown", y);
+  const scoredDimensions = kpiAssessment.dimensions.filter(d => !d.risk);
+  const breakdownRows = [];
+  scoredDimensions.forEach(dim => {
+    dim.kpis.forEach((kpi, idx) => {
+      breakdownRows.push([
+        idx === 0 ? dim.label : "",
+        kpi.label,
+        String(kpi.weight),
+        String(kpi.score),
+        String(kpi.weightedScore),
+        kpi.reason
+      ]);
     });
-    y = doc.lastAutoTable.finalY + 14;
-  }
+  });
 
-  y = ensureSpace(doc, y, 90);
-  y = addSectionTitle(doc, "Summary", y);
-  y = addWrappedText(doc, report?.summary, y, { fallback: "No summary available." }) + 8;
+  autoTable(doc, {
+    startY: y, theme: "striped", margin: { left: 40, right: 40 },
+    head: [["Dimension", "KPI", "Weight", "Score", "Weighted", "Reason"]],
+    body: breakdownRows,
+    headStyles: { fillColor: [107, 114, 128], fontSize: 9 },
+    styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+    columnStyles: { 0: { fontStyle: "bold" }, 5: { cellWidth: 180 } }
+  });
+  y = doc.lastAutoTable.finalY + 24;
 
-  const listSections = [
-    ["Pros", report?.pros, "No pros captured."],
-    ["Cons", report?.cons, "No cons captured."],
-    ["Actionable Tips", report?.tips, "No tips captured."],
-    ["Questions Detected", report?.questionsDetected, "No explicit questions captured."]
-  ];
+  // Risk Flags Table
+  y = ensureSpace(doc, y, 120);
+  y = addSectionTitle(doc, "Risk Flags Detected", y);
+  const riskDimension = kpiAssessment.dimensions.find(d => d.risk);
+  autoTable(doc, {
+    startY: y, theme: "grid", margin: { left: 40, right: 40 },
+    head: [["Risk Indicator", "Present", "Deduction", "Evidence Quote"]],
+    body: riskDimension?.kpis.map(k => [
+      k.label,
+      k.present ? "TRUE" : "FALSE",
+      k.present ? "-5" : "0",
+      k.evidence
+    ]),
+    headStyles: { fillColor: [185, 28, 28], fontSize: 9 },
+    styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+    columnStyles: { 3: { cellWidth: 250 } }
+  });
+  y = doc.lastAutoTable.finalY + 24;
 
-  for (const [title, values, fallback] of listSections) {
-    y = ensureSpace(doc, y, 90);
-    y = addSectionTitle(doc, title, y);
-    const items = lineItems(values);
-    if (!items.length) {
-      y = addWrappedText(doc, fallback, y) + 8;
-      continue;
-    }
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      margin: { left: 40, right: 40 },
-      body: items.map((item) => [item]),
-      styles: { fontSize: 10, cellPadding: 5 },
-      columnStyles: { 0: { cellWidth: 515 } }
-    });
-    y = doc.lastAutoTable.finalY + 14;
-  }
-
-  y = ensureSpace(doc, y, 80);
-  y = addSectionTitle(doc, "Demo Quality Evaluation", y);
-  y = addWrappedText(doc, report?.demoQualityEvaluation, y, { fallback: "No evaluation available." }) + 8;
-
-  const qaPairs = Array.isArray(report?.qaPairs) ? report.qaPairs.filter((pair) => pair?.question || pair?.answer || pair?.tip) : [];
-  if (qaPairs.length) {
-    y = ensureSpace(doc, y, 120);
-    y = addSectionTitle(doc, "Client Q&A", y);
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      margin: { left: 40, right: 40 },
-      head: [["Question", "Answer", "Tip"]],
-      body: qaPairs.map((pair) => [
-        safeText(pair.question),
-        safeText(pair.answer),
-        safeText(pair.tip)
-      ]),
-      headStyles: { fillColor: [124, 58, 237], textColor: 255, fontSize: 10 },
-      styles: { fontSize: 9, cellPadding: 5 }
-    });
-    y = doc.lastAutoTable.finalY + 14;
-  }
-
+  // AI Summary & Detailed Analysis
   y = ensureSpace(doc, y, 100);
-  y = addSectionTitle(doc, "Transcript", y);
-  addWrappedText(doc, report?.transcript?.transcriptText, y, {
-    fallback: "Transcript is not available for this report.",
-    lineHeight: 12
+  y = addSectionTitle(doc, "Call Summary", y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const summaryLines = doc.splitTextToSize(safeText(report?.summary, "No summary available."), 515);
+  doc.text(summaryLines, 40, y);
+  y += summaryLines.length * 12 + 18;
+
+  y = ensureSpace(doc, y, 120);
+  y = addSectionTitle(doc, "Product Guidance", y);
+  autoTable(doc, {
+    startY: y, theme: "grid", margin: { left: 40, right: 40 },
+    body: [
+      ["Success Signals", kpiAssessment.productSummary.successSignals.join("\n")],
+      ["Discovery Prompts", kpiAssessment.productSummary.discoveryQuestions.join("\n")]
+    ],
+    styles: { fontSize: 8.5, cellPadding: 5 }
   });
+  y = doc.lastAutoTable.finalY + 24;
 
-  const fileTitle = safeText(meeting.title, "demo-analysis-report")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "demo-analysis-report";
+  // Final Transcript
+  y = ensureSpace(doc, y, 100);
+  y = addSectionTitle(doc, "Full Transcript", y);
+  doc.setFontSize(8);
+  const transcriptLines = doc.splitTextToSize(safeText(report?.transcript?.transcriptText, "Transcript not available."), 515);
+  doc.text(transcriptLines, 40, y);
 
+  const fileTitle = safeText(meeting.title, "demo-evaluation").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60);
   doc.save(`${fileTitle}.pdf`);
 }

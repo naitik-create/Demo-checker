@@ -1,0 +1,161 @@
+Version: 3.1.1
+Release Date: 2026-05-11
+
+Changes:
+- Dual logo upload: manager can now set separate Light Logo (for white/light backgrounds) and Dark Logo (for sidebar/dark backgrounds)
+- AppLogo component: variant prop ("light"/"dark") selects correct uploaded image; falls back to Motadata SVG wordmark
+- AppSettingsContext: fetches both logoUrl and logoDarkUrl from GET /api/settings/logo on app load
+- Settings routes: POST/DELETE /api/settings/logo/light and /api/settings/logo/dark (manager-only)
+- AppSetting model: key-value table (keys "logo", "logo_dark") with Multer file storage
+- Manager Settings page: two upload cards side-by-side with live preview on matching background color
+- Delete consultant: red trash button + confirmation modal added to Manager Consultant Directory
+- DELETE /api/consultants/:id endpoint with cascade delete (Transcript, DemoScore, AnalysisReport, Recording, Meeting)
+- Login page redesigned to Motadata BOQ Console style (centered card, red left border, gray background)
+- Custom Motadata SVG logo: salmon quarter-circle pie wedge + 270° dark ring arc (matches actual brand mark)
+- Route ordering fix: /managers/pending now correctly precedes /:consultantId wildcard
+
+Previous version: 3.1.0
+
+---
+
+Version: 3.1.0
+Release Date: 2026-05-06
+
+Changes:
+- Critical Gaps section redesigned from vertical stacked list to responsive grid grouped by severity (Missing/Weak/Partial)
+- Evidence quotes suppressed for score=1 KPIs (not attempted — nothing to quote); garbage transcript metadata filtered out for score=2/3
+- File upload added to Manager Manual Transcript Analysis page (.txt .srt .json .docx) with filename chip and clear button
+- Manager Settings page added (/manager/settings) — manager can reset any consultant's password with confirmation and show/hide toggle
+- PATCH /api/consultants/:id/reset-password endpoint added (manager/admin only, min 6 chars, auto-bcrypt hashed)
+- Settings link added to manager Sidebar and ManagerSubNav
+
+Previous version: 3.0.0
+
+---
+
+Version: 3.0.0
+Release Date: 2026-05-05
+
+Changes:
+- Switched AI scoring engine from local keyword heuristics to Claude Sonnet (claude-sonnet-4-6)
+- Installed anthropic SDK in ai-service venv; ai-service/.env created with ALLOW_CLAUDE_ANALYSIS + ANTHROPIC_API_KEY
+- Priority routing: Claude → OpenAI → local heuristics fallback
+- Enriched Claude prompt with full Motadata product context (ObserveOps + ServiceOps modules, personas, pain points, competitors, AREB objection framework, ideal demo flow)
+- KPI scoring rubrics now Motadata-specific: score-5 criteria defined per KPI referencing Motadata best practice
+- Fixed scoreFromAnalysis in demoMonitoringWorkflow.js — was falling through to heuristics even when Claude returned structured KPIs; now uses proper weighted KPI formula (same as manualTranscriptAnalysisService)
+- Added reanalyzeAll.js script to bulk-delete and re-analyze all meetings with transcripts
+- Report page: new "How This Score Was Calculated" section — dimension contribution table with earned/max/% and formula
+- Report page: new "Critical Gaps & What Was Missing" section — all KPIs scoring ≤ 3 grouped by dimension with Missing/Weak/Partial badges, Claude reasoning, and evidence quotes
+- Report page: new "Improvement Plan" section — dimension-by-dimension coaching plan (worst first) with what went wrong, KPI gaps, and how-to-improve tips with example sentences
+- Report page: What Went Well / What Went Wrong now shows dimension labels inline (Discovery:, Close:, etc.)
+- All 13 existing meeting transcripts re-analyzed with new Claude + Motadata-specific scoring
+
+Previous version: 2.2.4
+
+---
+
+Version: 2.2.4
+Release Date: 2026-04-24
+
+Changes:
+- Consultant checkbox filter in Manager Overview Monitored Meetings section
+- Monitored Meetings now shows only fully analyzed meetings (analysisStatus === completed)
+- Is Demo toggle auto-triggers background analysis immediately when enabled
+- runDemoMonitoringWorkflow now uses isDemo flag (not monitored) — picks up all past demo meetings
+- Calendar meetings: removed isOnlineMeeting filter so all Teams meeting types show (recurring, manually-linked)
+- Calendar always merges DB-synced meetings with live Teams data (Sync button populates calendar even when API fails)
+- Token refresh now includes scope + redirect_uri parameters fixing calendar load for some consultants
+- calendarError surfaced to frontend when Teams calendar API fails
+- Duplicate meetings in calendar deduplicated by title+startTime key
+- AI service Python venv rebuilt for current machine (Python 3.11)
+
+Previous version: 2.2.3
+
+---
+
+Version: 2.2.3
+Release Date: 2026-04-24
+
+Changes:
+- Is Demo toggle now works reliably on Consultant Calendar Meetings page (new PATCH /api/meetings/upsert-demo endpoint — creates DB record if not exists, then sets isDemo atomically)
+- Is Demo state persists across page refreshes (backend enriches calendarMeetings with isDemo from DB before returning; no more client-side ID-mismatch issues)
+- Added "Is Demo" filter button in Calendar Meetings filter bar — filters list to show only demo-marked meetings; works in combination with date filters
+- Dashboard "Total Meetings" KPI now counts correctly using server-enriched isDemo from calendar meetings
+- Calendar meetings now highlight analyzed meetings: green left border + green row tint, score badge next to title, green "Report" button
+- "Report" button in Calendar Meetings links directly to the meeting's analysis report page
+- Fixed "Report" button routing (/report → /reports)
+- Custom date range Apply button added to Calendar Meetings (calls /api/teams/me?from=X&to=Y)
+- Consultant calendar meetings API now supports from/to date params; defaults to 30-day window
+- All consultant meeting-list fetches use limit=1000 so all DB meetings are loaded for accurate state
+- AI service unreachable error now shows descriptive message instead of "fetch failed"
+
+Previous version: 2.2.2
+
+---
+
+Version: 2.2.2
+Release Date: 2026-04-23
+
+Changes:
+- Multilingual transcript support: auto-detects language (55+ languages), translates to English before scoring so all 23 KPIs work accurately for Hindi, Gujarati, Tamil, Arabic, French, etc.
+- Added langdetect + deep-translator to AI service (free, no API key required)
+- Analysis result now includes detectedLanguage, detectedLanguageName, translatedToEnglish fields
+- Redesigned Consultant Profile page (manager side): gradient hero banner, metadata chips, tab bar with underline indicator
+- Manager KPI section now matches consultant side (3-card grid + Score Breakdown card with dimension bars)
+- Manager Total Demos count now uses isDemo flag (same logic as consultant side)
+- Teams Calendar tab (manager side) redesigned to card-row grid with status pills, colored dots, hover effects
+- Calendar filter redesigned to quick date pills (Yesterday/Today/Tomorrow/This Week/All/Custom)
+- Calendar defaults to today's meetings only
+- Synced Demos section redesigned: card-row grid with meeting title + status pill, date, score badge, actions
+- Synced Demos date filter fixed: inline horizontal layout with Apply button; re-fetches from backend on Apply
+- Backend listMeetings now supports from/to date query params (Sequelize Op.gte/Op.lte filtering)
+- Backend listMeetings max limit raised from 200 to 1000; initial consultant load uses limit=500
+- Detailed Performance Breakdown redesigned to 2-column grid with compact dimension cards and KPI rows
+- Meeting Summary section: removed Client Name and Product fields; shows clean prose summary only
+
+Previous version: 2.1.3
+
+---
+
+Version: 2.1.3
+Release Date: 2026-04-23
+
+Changes:
+- Fixed calendar sync "Validation error" when two consultants are in the same Teams meeting
+  (changed teamsMeetingId to use calendar event ID which is user-specific, eliminating unique constraint conflicts)
+- Added isDemo field to Meeting model (DB-backed, auto-migrated on restart)
+- Added PATCH /api/meetings/:id/is-demo endpoint (consultants can toggle own, managers can toggle any)
+- Consultant "Is Demo?" toggle now saves to database instead of localStorage
+- Manager Overview "Total Demos" now counts only meetings marked as demo (isDemo = true) across all consultants
+
+Previous version: 2.1.2
+
+---
+
+Version: 2.1.2
+Release Date: 2026-04-23
+
+Changes:
+- Network accessibility: backend binds to 0.0.0.0 so team members on the same network can access the app
+- Updated FRONTEND_URL and AZURE_REDIRECT_URI in backend/.env to use server IP (10.20.40.100) instead of localhost
+- Updated VITE_BACKEND_URL in frontend/.env to use server IP (10.20.40.100) instead of localhost
+
+Previous version: 2.1.1
+
+---
+
+Version: 2.1.1
+Release Date: 2026-04-23
+
+Changes:
+- Fixed "View Report" not working for consultants from My Reports tab (React Router route order fix)
+- Added "Is Demo?" toggle column to Calendar Meetings table (localStorage-backed, persists across sessions)
+- Total Meetings KPI tile now counts meetings marked as demo (Is Demo? = on)
+- Redesigned Score Breakdown section as 3x2 card grid with percentage scores and grade badges
+- Fixed calendar table column alignment after adding 5th column (CSS Grid with fixed widths)
+- Manual meetings now visible in the Calendar tab
+- Added purple "Manual" badge for manually-added meetings
+- Transcript upload now supports .txt, .srt, .json, .docx/.doc formats
+- Fixed consultants getting 403 error when uploading transcripts (was blocked by manager/admin role check)
+
+Previous version: 2.1.0

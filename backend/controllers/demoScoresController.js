@@ -9,7 +9,16 @@ function badRequest(message) {
 
 export async function saveDemoScore(req, res, next) {
   try {
-    const { meetingId, communicationScore, engagementScore, structureScore, technicalScore, qaScore } = req.body || {};
+    const { 
+      meetingId, 
+      discoveryScore, 
+      rapportScore, 
+      demoScore, 
+      objectionsScore, 
+      engagementScore, 
+      closeScore, 
+      riskDeduction 
+    } = req.body || {};
     if (!meetingId) throw badRequest("meetingId is required");
 
     const meetingExists = await Meeting.findOne({ where: { id: meetingId }, attributes: ["id"] });
@@ -19,7 +28,15 @@ export async function saveDemoScore(req, res, next) {
       throw err;
     }
 
-    const scores = calculateDemoScores({ communicationScore, engagementScore, structureScore, technicalScore, qaScore });
+    const scores = calculateDemoScores({ 
+      discoveryScore, 
+      rapportScore, 
+      demoScore, 
+      objectionsScore, 
+      engagementScore, 
+      closeScore, 
+      riskDeduction 
+    });
 
     const [doc] = await DemoScore.upsert({ meetingId, ...scores }, { returning: true });
 
@@ -28,11 +45,13 @@ export async function saveDemoScore(req, res, next) {
       demoScore: {
         id: doc.id,
         meetingId: doc.meetingId,
-        communicationScore: doc.communicationScore,
+        discoveryScore: doc.discoveryScore,
+        rapportScore: doc.rapportScore,
+        demoScore: doc.demoScore,
+        objectionsScore: doc.objectionsScore,
         engagementScore: doc.engagementScore,
-        structureScore: doc.structureScore,
-        technicalScore: doc.technicalScore,
-        qaScore: doc.qaScore,
+        closeScore: doc.closeScore,
+        riskDeduction: doc.riskDeduction,
         totalScore: doc.totalScore,
         createdAt: doc.createdAt
       }

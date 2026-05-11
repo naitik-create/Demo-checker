@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../api/client.js";
 import {
-  CartesianGrid, Legend, Line, LineChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis
-} from "recharts";
-import {
-  Target, Star, Link2, Zap, TrendingUp, LayoutDashboard,
+  Target, Star, Link2, Zap, LayoutDashboard,
   RefreshCw, CheckCircle, AlertTriangle, UserCheck, Users,
   CalendarDays, FileText, BrainCircuit, Trophy, Activity,
-  BriefcaseBusiness, ChevronRight, Map, Search, Eye, CalendarClock
+  BriefcaseBusiness, ChevronRight, Map, Search, Eye, CalendarClock,
+  ChevronDown, X
 } from "lucide-react";
 
 function scoreOrNull(s) {
@@ -35,12 +32,15 @@ export default function ManagerOverviewPage() {
     return d.toISOString().split("T")[0];
   });
   const [monTo, setMonTo] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0]);
+  const [selectedConsultants, setSelectedConsultants] = useState(new Set());
+  const [showConsultantDropdown, setShowConsultantDropdown] = useState(false);
+  const consultantDropdownRef = useRef(null);
 
   async function loadData() {
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
       const [meetingsRes, consultantsRes] = await Promise.all([
-        apiFetch("/api/meetings", { auth: true }),
+        apiFetch("/api/meetings?limit=1000", { auth: true }),
         apiFetch("/api/consultants", { auth: true })
       ]);
       setState((s) => ({
@@ -55,6 +55,17 @@ export default function ManagerOverviewPage() {
   }
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (!showConsultantDropdown) return;
+    function handleClick(e) {
+      if (consultantDropdownRef.current && !consultantDropdownRef.current.contains(e.target)) {
+        setShowConsultantDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showConsultantDropdown]);
 
   async function onSync() {
     setState((s) => ({ ...s, syncing: true, error: "", syncMsg: "" }));
@@ -90,34 +101,17 @@ export default function ManagerOverviewPage() {
   }
 
   const stats = useMemo(() => {
-    const totalDemos = state.totalMeetings;
+    const totalDemos = state.meetings.filter(m => m.isDemo).length;
     const scores = state.meetings.map((m) => scoreOrNull(m.score)).filter((n) => n !== null);
     const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
     const connectedConsultants = state.consultants.filter((c) => c.teamsConnected).length;
     const totalConsultants = state.consultants.length;
     return { totalDemos, avgScore, connectedConsultants, totalConsultants };
-  }, [state.meetings, state.totalMeetings, state.consultants]);
+  }, [state.meetings, state.consultants]);
 
-  const trendData = useMemo(() => {
-    return state.meetings
-      .slice().sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
-      .slice(-20).map((m) => ({
-        date: new Date(m.startTime).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-        Score: scoreOrNull(m.score) ?? 0
-      }));
-  }, [state.meetings]);
-
-  const recentMeetings = useMemo(
-    () =>
-      [...state.meetings]
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-        .slice(0, 5),
-    [state.meetings]
-  );
-
-  // Monitored meetings with search + date filter
+  // Monitored meetings with search + date + consultant filter (only completed/analyzed)
   const monitoredMeetings = useMemo(() => {
-    const all = state.meetings.filter(m => m.monitored);
+    const all = state.meetings.filter(m => m.monitored && m.analysisStatus === "completed");
     const from = new Date(monFrom); from.setHours(0,0,0,0);
     const to = new Date(monTo); to.setHours(23,59,59,999);
     const q = monSearch.toLowerCase().trim();
@@ -125,9 +119,18 @@ export default function ManagerOverviewPage() {
       const s = m.startTime ? new Date(m.startTime) : null;
       if (s && (s < from || s > to)) return false;
       if (q && !(m.title || "").toLowerCase().includes(q) && !(m.consultant?.name || "").toLowerCase().includes(q)) return false;
+      if (selectedConsultants.size > 0 && !selectedConsultants.has(m.consultant?.id)) return false;
       return true;
     }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-  }, [state.meetings, monSearch, monFrom, monTo]);
+  }, [state.meetings, monSearch, monFrom, monTo, selectedConsultants]);
+
+  function toggleConsultant(id) {
+    setSelectedConsultants(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="page">
@@ -256,85 +259,9 @@ export default function ManagerOverviewPage() {
         </div>
       )}
 
-      {/* Performance Trend */}
-      <div className="card">
-        <div className="card__head">
-          <h2 style={{display:"flex",alignItems:"center",gap:8}}><TrendingUp size={20} color="var(--blue)"/> Performance Trend</h2>
-          <span className="muted">Last 20 demos</span>
-        </div>
-        {trendData.length === 0 ? (
-          <div className="muted" style={{ textAlign: "center", padding: "40px 0" }}>
-            No demo data yet. Sync calendar → select meetings to monitor → results appear automatically.
-          </div>
-        ) : (
-          <div style={{ width: "100%", height: 260 }}>
-            <ResponsiveContainer>
-              <LineChart data={trendData}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
-                <XAxis dataKey="date" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                <YAxis domain={[0, 100]} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--card-bg)", border: "1px solid var(--card-border)",
-                    borderRadius: "var(--radius-sm)", color: "var(--text-main)"
-                  }}
-                />
-                <Legend />
-                <Line type="monotone" dataKey="Score" stroke="#60aeff" strokeWidth={2.5}
-                  dot={{ fill: "#60aeff", r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-
-      {/* Recent Demos */}
-      <div className="card">
-        <div className="card__head">
-          <h2 style={{display:"flex",alignItems:"center",gap:8}}><Target size={20} color="var(--accent)"/> Recent Demos</h2>
-          <Link className="link" to="/manager/consultants">View consultants →</Link>
-        </div>
-        <div className="table">
-          <div className="table__row table__row--head">
-            <div>Meeting Title</div>
-            <div>Consultant</div>
-            <div>Date</div>
-            <div>Score</div>
-            <div></div>
-          </div>
-          {recentMeetings.map((m) => {
-            const sc = scoreOrNull(m.score);
-            return (
-              <div key={m.id} className="table__row">
-                <div className="ellipsis" style={{ fontWeight: 500 }}>{m.title}</div>
-                <div className="muted">{m.consultant?.name || "—"}</div>
-                <div className="muted">{new Date(m.startTime).toLocaleDateString("en-IN")}</div>
-                <div>
-                  {sc !== null ? (
-                    <span className="badge" style={{
-                      background: sc >= 80 ? "rgba(52,211,153,0.12)" : sc >= 60 ? "rgba(59,130,246,0.12)" : "rgba(251,146,60,0.12)",
-                      borderColor: sc >= 80 ? "rgba(52,211,153,0.3)" : sc >= 60 ? "rgba(59,130,246,0.3)" : "rgba(251,146,60,0.3)",
-                      color: ScoreColor(sc)
-                    }}>{sc}/100</span>
-                  ) : "—"}
-                </div>
-                <div>
-                  <Link className="link" to={`/reports/${m.id}`}>Report →</Link>
-                </div>
-              </div>
-            );
-          })}
-          {!recentMeetings.length && !state.loading && (
-            <div className="muted" style={{ padding: "24px", textAlign: "center" }}>
-              No demos yet. Add consultants → connect Teams → sync calendar → select meetings to monitor.
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* ─── Monitored Meetings ─── */}
       <div className="card">
-        <div className="card__head" style={{flexWrap:"wrap",gap:10}}>
+        <div className="card__head" style={{flexWrap:"wrap",gap:10,position:"relative",zIndex:10}}>
           <h2 style={{display:"flex",alignItems:"center",gap:8}}>
             <Activity size={20} color="var(--green)"/> Monitored Meetings
           </h2>
@@ -355,6 +282,72 @@ export default function ManagerOverviewPage() {
               <input type="date" className="input" style={{padding:"4px 8px",fontSize:"0.82rem",width:140}}
                 value={monTo} onChange={e => setMonTo(e.target.value)}/>
             </label>
+
+            {/* Consultant checkbox filter */}
+            <div ref={consultantDropdownRef} style={{position:"relative"}}>
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={() => setShowConsultantDropdown(v => !v)}
+                style={{display:"flex",alignItems:"center",gap:6,paddingLeft:10,paddingRight:10,
+                  background: selectedConsultants.size > 0 ? "rgba(99,102,241,0.12)" : undefined,
+                  borderColor: selectedConsultants.size > 0 ? "rgba(99,102,241,0.5)" : undefined,
+                  color: selectedConsultants.size > 0 ? "var(--purple)" : undefined
+                }}
+              >
+                <Users size={13}/>
+                {selectedConsultants.size > 0 ? `Consultant (${selectedConsultants.size})` : "Consultant"}
+                <ChevronDown size={13}/>
+              </button>
+
+              {showConsultantDropdown && (
+                <div style={{
+                  position:"absolute", top:"calc(100% + 6px)", right:0, zIndex:9999,
+                  background:"#1a1d2e", border:"1px solid rgba(255,255,255,0.1)",
+                  borderRadius:10, boxShadow:"0 8px 32px rgba(0,0,0,0.6)",
+                  minWidth:230, padding:"8px 0",
+                  backdropFilter:"none", isolation:"isolate"
+                }}>
+                  {/* Header */}
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                    padding:"4px 12px 8px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
+                    <span style={{fontSize:"0.75rem",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.05em"}}>Filter by Consultant</span>
+                    <button style={{background:"none",border:"none",cursor:"pointer",padding:2,color:"var(--text-muted)",display:"flex"}}
+                      onClick={() => setShowConsultantDropdown(false)}><X size={14}/></button>
+                  </div>
+
+                  {/* Clear all */}
+                  {selectedConsultants.size > 0 && (
+                    <button style={{
+                      display:"block",width:"100%",textAlign:"left",background:"none",border:"none",
+                      cursor:"pointer",padding:"6px 14px",fontSize:"0.8rem",color:"var(--accent)",fontWeight:600
+                    }} onClick={() => setSelectedConsultants(new Set())}>
+                      Clear all
+                    </button>
+                  )}
+
+                  {/* Consultant list */}
+                  <div style={{maxHeight:240,overflowY:"auto"}}>
+                    {state.consultants.length === 0 && (
+                      <div style={{padding:"10px 14px",fontSize:"0.82rem",color:"var(--text-muted)"}}>No consultants</div>
+                    )}
+                    {state.consultants.map(c => (
+                      <label key={c.id} style={{
+                        display:"flex",alignItems:"center",gap:10,padding:"7px 14px",
+                        cursor:"pointer",fontSize:"0.84rem",
+                        background: selectedConsultants.has(c.id) ? "#252840" : "#1a1d2e",
+                        transition:"background 0.15s"
+                      }}>
+                        <input type="checkbox" checked={selectedConsultants.has(c.id)}
+                          onChange={() => toggleConsultant(c.id)}
+                          style={{accentColor:"var(--purple)",width:15,height:15,flexShrink:0}}/>
+                        <span style={{fontWeight: selectedConsultants.has(c.id) ? 600 : 400,
+                          color: selectedConsultants.has(c.id) ? "var(--purple)" : "var(--text)"}}>{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="table">
@@ -368,7 +361,7 @@ export default function ManagerOverviewPage() {
           </div>
           {monitoredMeetings.map(m => {
             const sc = scoreOrNull(m.score);
-            const isAnalyzed = m.status === "completed";
+            const isAnalyzed = m.analysisStatus === "completed";
             return (
               <div key={m.id} className="table__row">
                 <div className="ellipsis" style={{fontWeight:500}}>{m.title}</div>
@@ -403,7 +396,7 @@ export default function ManagerOverviewPage() {
           })}
           {!monitoredMeetings.length && !state.loading && (
             <div className="muted" style={{padding:"24px",textAlign:"center"}}>
-              No monitored meetings found. Select meetings to monitor from consultant profiles.
+              No analyzed meetings found. Meetings appear here once transcript is uploaded and AI analysis is complete.
             </div>
           )}
         </div>

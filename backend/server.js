@@ -30,12 +30,14 @@ import { speechMeetingsRoutes } from "./routes/speechMeetingsRoutes.js";
 import { startAutoAnalyzerScheduler } from "./services/autoAnalyzerScheduler.js";
 import { startCalendarSyncScheduler } from "./services/calendarSyncScheduler.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
+import { settingsRoutes } from "./routes/settingsRoutes.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("dev"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api", healthRoutes);
 app.use("/api/auth", authRoutes);
@@ -51,6 +53,7 @@ app.use("/api/consultants", consultantsRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/presales-reports", presalesReportsRoutes);
 app.use("/api/stt", speechMeetingsRoutes);
+app.use("/api/settings", settingsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

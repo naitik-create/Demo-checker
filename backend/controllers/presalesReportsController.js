@@ -66,11 +66,13 @@ export async function getCompletePresalesReport(req, res, next) {
         productName: analysis?.productName || "",
         totalScore: typeof score?.totalScore === "number" ? score.totalScore : null,
         sentiment: analysis?.sentiment ?? null,
-        communicationScore: typeof score?.communicationScore === "number" ? score.communicationScore : null,
+        discoveryScore: typeof score?.discoveryScore === "number" ? score.discoveryScore : null,
+        rapportScore: typeof score?.rapportScore === "number" ? score.rapportScore : null,
+        demoScore: typeof score?.demoScore === "number" ? score.demoScore : null,
+        objectionsScore: typeof score?.objectionsScore === "number" ? score.objectionsScore : null,
         engagementScore: typeof score?.engagementScore === "number" ? score.engagementScore : null,
-        structureScore: typeof score?.structureScore === "number" ? score.structureScore : null,
-        technicalScore: typeof score?.technicalScore === "number" ? score.technicalScore : null,
-        qaScore: typeof score?.qaScore === "number" ? score.qaScore : null
+        closeScore: typeof score?.closeScore === "number" ? score.closeScore : null,
+        riskDeduction: typeof score?.riskDeduction === "number" ? score.riskDeduction : null
       });
     }
 
@@ -97,11 +99,13 @@ export async function getCompletePresalesReport(req, res, next) {
         totalDemos: scored.length,
         averageScore: avg,
         dimensionAverages: {
-          communicationScore: avgDim("communicationScore"),
+          discoveryScore: avgDim("discoveryScore"),
+          rapportScore: avgDim("rapportScore"),
+          demoScore: avgDim("demoScore"),
+          objectionsScore: avgDim("objectionsScore"),
           engagementScore: avgDim("engagementScore"),
-          structureScore: avgDim("structureScore"),
-          technicalScore: avgDim("technicalScore"),
-          qaScore: avgDim("qaScore")
+          closeScore: avgDim("closeScore"),
+          riskDeduction: avgDim("riskDeduction")
         },
         sentimentCounts,
         demos: scored.slice().sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
