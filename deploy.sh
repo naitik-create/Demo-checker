@@ -8,6 +8,9 @@
 
 set -e   # exit immediately if any command fails
 
+# Prevent apt-get from asking interactive questions during install/upgrade
+export DEBIAN_FRONTEND=noninteractive
+
 # ── Colours ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -15,7 +18,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
-NC='\033[0m' # No Colour
+NC='\033[0m'
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 step()  { echo -e "\n${BLUE}${BOLD}▶  $1${NC}"; }
@@ -77,11 +80,11 @@ ask "   Get it from https://console.anthropic.com"
 read -rp "   Anthropic API Key: " ANTHROPIC_KEY
 [[ -z "$ANTHROPIC_KEY" ]] && warn "Skipping Anthropic key — AI analysis will not work until you add it."
 
-# --- Skip torch/transformers? ---
+# --- torch/transformers ---
 ask ""
 ask "4. Install torch + transformers? (large ~2GB download, only needed"
 ask "   for local audio transcription — Teams transcripts work WITHOUT it)"
-ask "   Recommended: N (skip) unless you plan to upload audio files."
+ask "   Recommended: N"
 read -rp "   Install torch/transformers? [y/N]: " INSTALL_TORCH
 INSTALL_TORCH=${INSTALL_TORCH:-N}
 
@@ -101,12 +104,20 @@ read -rp "Looks good? Press ENTER to start installation, or Ctrl+C to cancel..."
 # =============================================================================
 
 step "Updating system packages"
-sudo apt-get update -qq && sudo apt-get upgrade -y -qq
+sudo apt-get update -y
+sudo apt-get upgrade -y
 ok "System packages updated"
 
 # --- Prerequisites ---
-step "Installing prerequisites (curl, ca-certificates)"
-sudo apt-get install -y -qq curl ca-certificates
+step "Installing prerequisites"
+sudo apt-get install -y \
+  curl \
+  ca-certificates \
+  gnupg \
+  build-essential \
+  software-properties-common \
+  git \
+  ufw
 ok "Prerequisites installed"
 
 # --- Node.js 20 ---
@@ -115,26 +126,31 @@ if node -v 2>/dev/null | grep -q "v20"; then
   ok "Node.js 20 already installed ($(node -v))"
 else
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-  sudo apt-get install -y -qq nodejs
+  sudo apt-get install -y nodejs
   ok "Node.js installed: $(node -v)"
 fi
+echo "Node version: $(node -v)"
+echo "NPM version:  $(npm -v)"
 
 # --- Python 3.11 ---
-# Ubuntu 24.04 ships Python 3.12 as default but 3.11 is in the default repos.
 step "Installing Python 3.11"
 if python3.11 --version 2>/dev/null | grep -q "3.11"; then
   ok "Python 3.11 already installed ($(python3.11 --version))"
 else
-  sudo apt-get install -y -qq python3.11 python3.11-venv
+  # Enable universe repo to ensure python3.11 is available on Ubuntu 24.04
+  sudo add-apt-repository universe -y
+  sudo apt-get update -y
+  sudo apt-get install -y python3.11 python3.11-full python3.11-venv python3-pip
   ok "Python 3.11 installed: $(python3.11 --version)"
 fi
+echo "Python version: $(python3.11 --version)"
 
 # --- PostgreSQL ---
 step "Installing PostgreSQL"
 if systemctl is-active --quiet postgresql; then
   ok "PostgreSQL already running"
 else
-  sudo apt-get install -y -qq postgresql postgresql-contrib
+  sudo apt-get install -y postgresql postgresql-contrib
   sudo systemctl enable postgresql
   sudo systemctl start postgresql
   ok "PostgreSQL installed and started"
@@ -142,32 +158,26 @@ fi
 
 # --- Nginx ---
 step "Installing Nginx"
-if nginx -v 2>/dev/null; then
-  ok "Nginx already installed"
+if systemctl is-active --quiet nginx; then
+  ok "Nginx already running"
 else
-  sudo apt-get install -y -qq nginx
+  sudo apt-get install -y nginx
   sudo systemctl enable nginx
   sudo systemctl start nginx
-  ok "Nginx installed"
+  ok "Nginx installed and started"
 fi
-
-# --- Git ---
-step "Installing Git"
-sudo apt-get install -y -qq git
-ok "Git installed: $(git --version)"
 
 # --- PM2 ---
 step "Installing PM2 (process manager)"
 if pm2 -v 2>/dev/null; then
   ok "PM2 already installed ($(pm2 -v))"
 else
-  sudo npm install -g pm2 --silent
+  sudo npm install -g pm2
   ok "PM2 installed: $(pm2 -v)"
 fi
 
-# Generate a secure JWT secret now that Node.js is guaranteed installed
-JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))" 2>/dev/null \
-             || openssl rand -hex 64)
+# --- JWT Secret (generated after Node.js is confirmed installed) ---
+JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
 
 # =============================================================================
 #  SECTION 3 — PostgreSQL database setup
@@ -175,13 +185,12 @@ JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(64).toString('he
 
 step "Setting up PostgreSQL database"
 
-# Check if user/db already exists
 DB_USER_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='demoapp'" 2>/dev/null || echo "")
 if [[ "$DB_USER_EXISTS" == "1" ]]; then
   warn "Database user 'demoapp' already exists — updating password."
-  sudo -u postgres psql -c "ALTER USER demoapp WITH PASSWORD '$DB_PASS';" > /dev/null
+  sudo -u postgres psql -c "ALTER USER demoapp WITH PASSWORD '$DB_PASS';"
 else
-  sudo -u postgres psql -c "CREATE USER demoapp WITH PASSWORD '$DB_PASS';" > /dev/null
+  sudo -u postgres psql -c "CREATE USER demoapp WITH PASSWORD '$DB_PASS';"
   ok "Database user 'demoapp' created"
 fi
 
@@ -189,11 +198,11 @@ DB_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname=
 if [[ "$DB_EXISTS" == "1" ]]; then
   warn "Database 'demo_monitoring' already exists — skipping creation."
 else
-  sudo -u postgres psql -c "CREATE DATABASE demo_monitoring OWNER demoapp;" > /dev/null
+  sudo -u postgres psql -c "CREATE DATABASE demo_monitoring OWNER demoapp;"
   ok "Database 'demo_monitoring' created"
 fi
 
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE demo_monitoring TO demoapp;" > /dev/null
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE demo_monitoring TO demoapp;"
 ok "PostgreSQL ready"
 
 # =============================================================================
@@ -213,21 +222,20 @@ else
   sudo git clone -b dev https://github.com/naitik-create/Demo-checker.git "$INSTALL_DIR"
   sudo chown -R "$USER:$USER" "$INSTALL_DIR"
 fi
-ok "Code at $INSTALL_DIR on branch: $(cd $INSTALL_DIR && git branch --show-current)"
+ok "Code ready at $INSTALL_DIR (branch: $(cd $INSTALL_DIR && git branch --show-current))"
 
 # =============================================================================
 #  SECTION 5 — Write environment files
 # =============================================================================
 
 step "Writing backend .env"
-cat > "$INSTALL_DIR/backend/.env" <<EOF
+cat > "$INSTALL_DIR/backend/.env" <<BACKENDENV
 PORT=5000
 DATABASE_URL=postgresql://demoapp:${DB_PASS}@localhost:5432/demo_monitoring
 
 JWT_SECRET=${JWT_SECRET}
 JWT_EXPIRES_IN=7d
 
-# Microsoft Azure / Teams
 AZURE_TENANT_ID=fc4f4c2e-4ff3-4aaa-aa72-a8b487cfd5d6
 AZURE_CLIENT_ID=cd99f740-f97d-4317-9d82-afcfc40ae08b
 AZURE_CLIENT_SECRET=e6_8Q~ftPH3MCMcym61qnRoeOyoZifiQBCFaAaQP
@@ -239,21 +247,19 @@ GRAPH_SYNC_DAYS_FUTURE=30
 
 AI_SERVICE_URL=http://localhost:7000
 FRONTEND_URL=http://${SERVER_IP}
-EOF
+BACKENDENV
 ok "backend/.env written"
 
 step "Writing AI service .env"
-cat > "$INSTALL_DIR/ai-service/.env" <<EOF
+cat > "$INSTALL_DIR/ai-service/.env" <<AIENV
 ALLOW_CLAUDE_ANALYSIS=true
 ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
 CLAUDE_MODEL=claude-sonnet-4-6
-EOF
+AIENV
 ok "ai-service/.env written"
 
 step "Writing frontend .env"
-cat > "$INSTALL_DIR/frontend/.env" <<EOF
-VITE_BACKEND_URL=http://${SERVER_IP}
-EOF
+echo "VITE_BACKEND_URL=http://${SERVER_IP}" > "$INSTALL_DIR/frontend/.env"
 ok "frontend/.env written"
 
 # =============================================================================
@@ -262,12 +268,9 @@ ok "frontend/.env written"
 
 step "Installing backend Node.js dependencies"
 cd "$INSTALL_DIR/backend"
-npm install --silent
-ok "Backend dependencies installed"
-
-# Create uploads directory
+npm install
 mkdir -p "$INSTALL_DIR/backend/uploads"
-ok "uploads/ directory ready"
+ok "Backend dependencies installed"
 
 # =============================================================================
 #  SECTION 7 — Python AI service
@@ -285,15 +288,13 @@ fi
 
 source venv/bin/activate
 
-# Optionally remove torch/transformers to speed up install
 if [[ "${INSTALL_TORCH,,}" != "y" ]]; then
-  warn "Skipping torch + transformers (faster install, Teams transcripts still work)"
-  # Install everything except torch and transformers
+  warn "Skipping torch + transformers — Teams transcripts still work fine"
   grep -v -E "^torch|^transformers" requirements.txt > /tmp/requirements_lite.txt
-  pip install -q -r /tmp/requirements_lite.txt
+  pip install -r /tmp/requirements_lite.txt
 else
-  step "Installing Python packages including torch (~2 GB, this may take 10+ minutes)"
-  pip install -q -r requirements.txt
+  step "Installing all Python packages including torch (~2 GB, may take 10+ minutes)"
+  pip install -r requirements.txt
 fi
 
 deactivate
@@ -303,9 +304,12 @@ ok "AI service Python environment ready"
 #  SECTION 8 — Build React frontend
 # =============================================================================
 
-step "Installing frontend dependencies and building React app"
+step "Installing frontend Node.js dependencies"
 cd "$INSTALL_DIR/frontend"
-npm install --silent
+npm install
+ok "Frontend dependencies installed"
+
+step "Building React app (this takes 1-2 minutes)"
 npm run build
 ok "Frontend built → frontend/dist/"
 
@@ -314,7 +318,7 @@ ok "Frontend built → frontend/dist/"
 # =============================================================================
 
 step "Configuring Nginx"
-sudo tee /etc/nginx/sites-available/demo-monitoring > /dev/null <<EOF
+sudo tee /etc/nginx/sites-available/demo-monitoring > /dev/null <<NGINXCONF
 server {
     listen 80;
     server_name ${SERVER_IP};
@@ -322,12 +326,10 @@ server {
     root ${INSTALL_DIR}/frontend/dist;
     index index.html;
 
-    # React Router — all unknown paths return index.html
     location / {
         try_files \$uri \$uri/ /index.html;
     }
 
-    # Proxy API requests to Node.js backend
     location /api/ {
         proxy_pass http://localhost:5000;
         proxy_http_version 1.1;
@@ -340,20 +342,16 @@ server {
         client_max_body_size 20M;
     }
 
-    # Serve uploaded logos
     location /uploads/ {
         alias ${INSTALL_DIR}/backend/uploads/;
         expires 7d;
         add_header Cache-Control "public";
     }
 }
-EOF
+NGINXCONF
 
-# Enable site, disable default placeholder
 sudo ln -sf /etc/nginx/sites-available/demo-monitoring /etc/nginx/sites-enabled/demo-monitoring
 sudo rm -f /etc/nginx/sites-enabled/default
-
-# Test and reload
 sudo nginx -t
 sudo systemctl reload nginx
 ok "Nginx configured and reloaded"
@@ -363,10 +361,10 @@ ok "Nginx configured and reloaded"
 # =============================================================================
 
 step "Configuring UFW firewall"
-sudo ufw allow 22/tcp   > /dev/null 2>&1
-sudo ufw allow 80/tcp   > /dev/null 2>&1
-sudo ufw --force enable > /dev/null 2>&1
-ok "Firewall enabled (ports 22 and 80 open)"
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw --force enable
+ok "Firewall enabled — ports 22 (SSH) and 80 (HTTP) open"
 
 # =============================================================================
 #  SECTION 11 — PM2 process setup
@@ -374,26 +372,23 @@ ok "Firewall enabled (ports 22 and 80 open)"
 
 step "Starting services with PM2"
 
-# Stop existing processes if running (for re-runs)
 pm2 delete demo-backend 2>/dev/null || true
 pm2 delete demo-ai      2>/dev/null || true
 
-# Start Node.js backend
 pm2 start "$INSTALL_DIR/backend/server.js" \
   --name demo-backend \
+  --interpreter node \
   --cwd "$INSTALL_DIR/backend"
 
-# Start Python AI service
-pm2 start "$INSTALL_DIR/ai-service/venv/bin/python app.py" \
+pm2 start "$INSTALL_DIR/ai-service/venv/bin/python" \
   --name demo-ai \
-  --cwd "$INSTALL_DIR/ai-service"
+  --cwd "$INSTALL_DIR/ai-service" \
+  -- app.py
 
-# Save PM2 process list
 pm2 save
 
-# Register PM2 to start on system boot
-PM2_STARTUP=$(pm2 startup systemd -u "$USER" --hp "$HOME" | tail -1)
-eval "$PM2_STARTUP" 2>/dev/null || sudo env PATH="$PATH:/usr/bin" pm2 startup systemd -u "$USER" --hp "$HOME"
+# Register PM2 to auto-start on reboot
+sudo env PATH="$PATH:/usr/bin" pm2 startup systemd -u "$USER" --hp "$HOME"
 
 ok "PM2 processes started and registered for auto-start on reboot"
 
@@ -401,29 +396,35 @@ ok "PM2 processes started and registered for auto-start on reboot"
 #  SECTION 12 — Health checks
 # =============================================================================
 
-step "Running health checks (waiting 5 seconds for services to start)"
-sleep 5
+step "Running health checks (waiting 8 seconds for services to start)"
+sleep 8
 
 echo ""
-# Backend check
+PASS=0
+FAIL=0
+
 if curl -sf http://localhost:5000/api/health > /dev/null 2>&1; then
-  ok "Backend health check PASSED  → http://localhost:5000/api/health"
+  ok "Backend        PASSED → http://localhost:5000/api/health"
+  PASS=$((PASS+1))
 else
-  warn "Backend health check FAILED — check logs with: pm2 logs demo-backend"
+  warn "Backend        FAILED — run: pm2 logs demo-backend"
+  FAIL=$((FAIL+1))
 fi
 
-# AI service check
 if curl -sf http://localhost:7000/health > /dev/null 2>&1; then
-  ok "AI service health check PASSED → http://localhost:7000/health"
+  ok "AI service     PASSED → http://localhost:7000/health"
+  PASS=$((PASS+1))
 else
-  warn "AI service health check FAILED — check logs with: pm2 logs demo-ai"
+  warn "AI service     FAILED — run: pm2 logs demo-ai"
+  FAIL=$((FAIL+1))
 fi
 
-# Nginx check
 if curl -sf http://localhost > /dev/null 2>&1; then
-  ok "Nginx PASSED → serving frontend at http://${SERVER_IP}"
+  ok "Nginx/Frontend PASSED → http://${SERVER_IP}"
+  PASS=$((PASS+1))
 else
-  warn "Nginx check FAILED — run: sudo nginx -t"
+  warn "Nginx/Frontend FAILED — run: sudo nginx -t"
+  FAIL=$((FAIL+1))
 fi
 
 # =============================================================================
@@ -436,18 +437,23 @@ echo "╔═══════════════════════�
 echo "║                  ✔  Setup Complete!                          ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
+echo -e "  Health: ${GREEN}${PASS}/3 checks passed${NC}"
+echo ""
 echo -e "  App URL      : ${BOLD}http://${SERVER_IP}${NC}"
+echo -e "  Login        : username = admin  |  password = M@t@d@t@"
+echo ""
 echo -e "  PM2 status   : ${CYAN}pm2 status${NC}"
 echo -e "  Backend logs : ${CYAN}pm2 logs demo-backend${NC}"
 echo -e "  AI logs      : ${CYAN}pm2 logs demo-ai${NC}"
 echo ""
-echo -e "${YELLOW}${BOLD}IMPORTANT — Action required in Azure Portal:${NC}"
-echo "  Add this Redirect URI to your Azure App Registration:"
-echo -e "  ${BOLD}http://${SERVER_IP}/api/teams/oauth/callback${NC}"
-echo "  Azure Portal → Azure AD → App Registrations → your app → Authentication"
+echo -e "${YELLOW}${BOLD}─── ACTION REQUIRED IN AZURE PORTAL ───────────────────────────${NC}"
 echo ""
-echo -e "${YELLOW}${BOLD}IMPORTANT — Admin consent required (once):${NC}"
-echo "  In Azure Portal → App Registrations → API Permissions"
-echo "  Click 'Grant admin consent' so Teams transcripts can be read."
+echo "  1. Add this Redirect URI to your Azure App Registration:"
+echo -e "     ${BOLD}http://${SERVER_IP}/api/teams/oauth/callback${NC}"
+echo "     Path: Azure Portal → App registrations → your app → Authentication"
+echo ""
+echo "  2. Grant admin consent for API permissions:"
+echo "     Path: Azure Portal → App registrations → your app → API permissions"
+echo "     Click: 'Grant admin consent for [your organisation]'"
 echo ""
 pm2 status
