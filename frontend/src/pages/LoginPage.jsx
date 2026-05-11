@@ -90,15 +90,16 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <label style={labelStyle}>Email Address</label>
+              <label style={labelStyle}>Email / Username</label>
               <input
                 style={inputStyle}
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                type="email"
-                placeholder="Enter your email"
+                type="text"
+                placeholder="Enter your email or username"
                 required
                 autoFocus
+                autoComplete="username"
               />
             </div>
 

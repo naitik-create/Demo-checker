@@ -31,6 +31,7 @@ import { startAutoAnalyzerScheduler } from "./services/autoAnalyzerScheduler.js"
 import { startCalendarSyncScheduler } from "./services/calendarSyncScheduler.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { settingsRoutes } from "./routes/settingsRoutes.js";
+import { seedAdminAccount } from "./scripts/seedAdmin.js";
 
 const app = express();
 
@@ -64,6 +65,7 @@ async function start() {
   await connectDatabase();
   // eslint-disable-next-line no-console
   console.log("Connected to PostgreSQL database");
+  await seedAdminAccount();
 
   const server = app.listen(PORT, "0.0.0.0", () => {
     // eslint-disable-next-line no-console
