@@ -133,15 +133,12 @@ echo "Node version: $(node -v)"
 echo "NPM version:  $(npm -v)"
 
 # --- Python 3.12 ---
-# Ubuntu 24.04 ships Python 3.12 as default — use it directly, no PPA needed.
+# Ubuntu 24.04 defaults to Python 3.12. Use unversioned packages —
+# python3-venv and python3-full correctly include ensurepip on 24.04.
 step "Installing Python 3.12"
-if python3.12 --version 2>/dev/null | grep -q "3.12"; then
-  ok "Python 3.12 already installed ($(python3.12 --version))"
-else
-  sudo apt-get install -y python3.12 python3.12-full python3.12-venv python3-pip
-  ok "Python 3.12 installed: $(python3.12 --version)"
-fi
-echo "Python version: $(python3.12 --version)"
+sudo apt-get install -y python3 python3-full python3-venv python3-pip
+ok "Python installed: $(python3 --version)"
+echo "Python version: $(python3 --version)"
 
 # --- PostgreSQL ---
 step "Installing PostgreSQL"
@@ -278,10 +275,13 @@ step "Setting up Python virtual environment for AI service"
 cd "$INSTALL_DIR/ai-service"
 
 if [[ ! -d "venv" ]]; then
-  python3.12 -m venv venv
+  python3 -m venv venv
   ok "Virtual environment created"
 else
-  ok "Virtual environment already exists"
+  ok "Virtual environment already exists — removing and recreating to be safe"
+  rm -rf venv
+  python3 -m venv venv
+  ok "Virtual environment recreated"
 fi
 
 source venv/bin/activate
