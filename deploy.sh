@@ -228,7 +228,7 @@ JWT_EXPIRES_IN=7d
 AZURE_TENANT_ID=fc4f4c2e-4ff3-4aaa-aa72-a8b487cfd5d6
 AZURE_CLIENT_ID=cd99f740-f97d-4317-9d82-afcfc40ae08b
 AZURE_CLIENT_SECRET=e6_8Q~ftPH3MCMcym61qnRoeOyoZifiQBCFaAaQP
-AZURE_REDIRECT_URI=http://${SERVER_IP}/api/teams/oauth/callback
+AZURE_REDIRECT_URI=http://localhost/api/teams/oauth/callback
 AZURE_SCOPE=offline_access User.Read Calendars.Read OnlineMeetings.Read OnlineMeetingTranscript.Read.All Chat.Read
 
 GRAPH_SYNC_DAYS_PAST=30
