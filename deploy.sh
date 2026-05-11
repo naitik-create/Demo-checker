@@ -132,18 +132,16 @@ fi
 echo "Node version: $(node -v)"
 echo "NPM version:  $(npm -v)"
 
-# --- Python 3.11 ---
-step "Installing Python 3.11"
-if python3.11 --version 2>/dev/null | grep -q "3.11"; then
-  ok "Python 3.11 already installed ($(python3.11 --version))"
+# --- Python 3.12 ---
+# Ubuntu 24.04 ships Python 3.12 as default — use it directly, no PPA needed.
+step "Installing Python 3.12"
+if python3.12 --version 2>/dev/null | grep -q "3.12"; then
+  ok "Python 3.12 already installed ($(python3.12 --version))"
 else
-  # Enable universe repo to ensure python3.11 is available on Ubuntu 24.04
-  sudo add-apt-repository universe -y
-  sudo apt-get update -y
-  sudo apt-get install -y python3.11 python3.11-full python3.11-venv python3-pip
-  ok "Python 3.11 installed: $(python3.11 --version)"
+  sudo apt-get install -y python3.12 python3.12-full python3.12-venv python3-pip
+  ok "Python 3.12 installed: $(python3.12 --version)"
 fi
-echo "Python version: $(python3.11 --version)"
+echo "Python version: $(python3.12 --version)"
 
 # --- PostgreSQL ---
 step "Installing PostgreSQL"
@@ -280,7 +278,7 @@ step "Setting up Python virtual environment for AI service"
 cd "$INSTALL_DIR/ai-service"
 
 if [[ ! -d "venv" ]]; then
-  python3.11 -m venv venv
+  python3.12 -m venv venv
   ok "Virtual environment created"
 else
   ok "Virtual environment already exists"

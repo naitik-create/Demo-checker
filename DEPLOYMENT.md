@@ -99,12 +99,11 @@ sudo apt install -y nodejs
 node -v    # should print v20.x.x
 npm -v     # should print 10.x.x
 
-# Python 3.11
-# Ubuntu 24.04 ships Python 3.12 as default — 3.11 is in the standard repos
-sudo apt install -y python3.11 python3.11-venv
+# Python 3.12 (default on Ubuntu 24.04 — no extra repo needed)
+sudo apt install -y python3.12 python3.12-full python3.12-venv python3-pip
 
 # Verify
-python3.11 --version   # should print Python 3.11.x
+python3.12 --version   # should print Python 3.12.x
 
 # PostgreSQL
 sudo apt install -y postgresql postgresql-contrib
@@ -263,7 +262,7 @@ Set up the Python virtual environment:
 
 ```bash
 cd /opt/demo-monitoring/ai-service
-python3.11 -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate
 
 # Install Python packages (this may take 5–10 minutes)
