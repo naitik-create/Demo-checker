@@ -1,3 +1,21 @@
+Version: 3.1.2
+Release Date: 2026-05-11
+
+Changes:
+- Fixed Validation error when multiple consultants are in the same Teams meeting
+  (teamsMeetingId unique constraint changed from global to composite with consultantId)
+- Fixed PM2 Python AI service start: use app.py as script with --interpreter venv python3
+  (previous command caused ELF null bytes SyntaxError)
+- Fixed AZURE_REDIRECT_URI: use localhost instead of server IP
+  (no Azure update required when server IP changes)
+- Fixed deploy.sh: added automatic DB constraint migration for teamsMeetingId
+- Improved AutoAnalyzer error logging: shows field-level validation details
+- deploy.sh version bumped to 3.1.2
+
+Previous version: 3.1.1
+
+---
+
 Version: 3.1.1
 Release Date: 2026-05-11
 

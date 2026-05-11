@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 #  Demo Monitoring AI System — Ubuntu 24.04 Server Setup Script
-#  Version: 3.1.1
+#  Version: 3.1.2
 #  Usage: chmod +x deploy.sh && ./deploy.sh
 # =============================================================================
 
@@ -24,7 +24,7 @@ INSTALL_DIR="/opt/demo-monitoring"
 clear
 echo -e "${BOLD}"
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║        Demo Monitoring AI System — Server Setup v3.1.1       ║"
+echo "║        Demo Monitoring AI System — Server Setup v3.1.2       ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 echo "Installs everything needed to run the app on Ubuntu 24.04."
@@ -194,6 +194,13 @@ fi
 
 sudo -u postgres psql -c \
   "GRANT ALL PRIVILEGES ON DATABASE demo_monitoring TO demoapp;"
+
+# Fix legacy unique constraint on teamsMeetingId — must be composite with consultantId
+sudo -u postgres psql -d demo_monitoring -c "ALTER TABLE meetings DROP CONSTRAINT IF EXISTS \"meetings_teamsMeetingId_key\";" 2>/dev/null || true
+sudo -u postgres psql -d demo_monitoring -c "ALTER TABLE meetings DROP CONSTRAINT IF EXISTS \"meetings_teamsMeetingId_key1\";" 2>/dev/null || true
+sudo -u postgres psql -d demo_monitoring -c "ALTER TABLE meetings DROP CONSTRAINT IF EXISTS \"meetings_teamsMeetingId_key2\";" 2>/dev/null || true
+sudo -u postgres psql -d demo_monitoring -c "DROP INDEX IF EXISTS meetings_teams_meeting_id_consultant_id;" 2>/dev/null || true
+sudo -u postgres psql -d demo_monitoring -c "CREATE UNIQUE INDEX IF NOT EXISTS meetings_teams_consultant_unique ON meetings(\"teamsMeetingId\", \"consultantId\");" 2>/dev/null || true
 ok "PostgreSQL ready"
 
 # =============================================================================

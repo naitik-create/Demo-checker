@@ -33,9 +33,7 @@ export function startAutoAnalyzerScheduler() {
       }
     } catch (err) {
       console.error("[AutoAnalyzer] Error running scheduled analysis:", err.message);
-      if (err.errors) console.error("[AutoAnalyzer] Validation details:", JSON.stringify(err.errors.map(e => ({ message: e.message, type: e.type, path: e.path, value: e.value }))));
-      if (err.sql) console.error("[AutoAnalyzer] SQL:", err.sql);
-      console.error("[AutoAnalyzer] Stack:", err.stack?.split("\n").slice(0,5).join("\n"));
+      if (err.errors) console.error("[AutoAnalyzer] Details:", JSON.stringify(err.errors.map(e => ({ message: e.message, type: e.type, path: e.path }))));
     }
   }
 
