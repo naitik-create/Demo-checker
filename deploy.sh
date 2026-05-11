@@ -382,12 +382,11 @@ pm2 start "$INSTALL_DIR/backend/server.js" \
   --name demo-backend \
   --cwd  "$INSTALL_DIR/backend"
 
-# Start Python AI service (pass app.py via --interpreter, not --)
-pm2 start "$INSTALL_DIR/ai-service/venv/bin/python3" \
+# Start Python AI service — script is app.py, interpreter is venv python3
+pm2 start "$INSTALL_DIR/ai-service/app.py" \
   --name demo-ai \
   --cwd  "$INSTALL_DIR/ai-service" \
-  --interpreter "$INSTALL_DIR/ai-service/venv/bin/python3" \
-  -- app.py
+  --interpreter "$INSTALL_DIR/ai-service/venv/bin/python3"
 
 pm2 save
 ok "Processes started and saved"
