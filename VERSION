@@ -13,6 +13,22 @@ Changes:
 - Login page redesigned to Motadata BOQ Console style (centered card, red left border, gray background)
 - Custom Motadata SVG logo: salmon quarter-circle pie wedge + 270° dark ring arc (matches actual brand mark)
 - Route ordering fix: /managers/pending now correctly precedes /:consultantId wildcard
+- Default admin account seeded on first startup (email: admin, password: M@t@d@t@, role: manager)
+- Login input changed to type=text to allow plain username without HTML5 email validation
+
+deploy.sh fixes (Ubuntu 24.04 production):
+- Fixed Node.js setup: removed invalid -qq flag from nodesource bash pipe
+- Fixed Python: use unversioned python3-venv + python3-full (Ubuntu 24.04, includes ensurepip)
+- Fixed venv: always remove and recreate; verify activate script exists before sourcing
+- Fixed PM2 Python start: use app.py as script with --interpreter venv python3 (ELF null bytes fix)
+- Fixed AZURE_REDIRECT_URI: use localhost instead of server IP
+- Fixed apt-get upgrade: added force-confdef/confold flags to suppress interactive prompts
+- Fixed set -e safety: replaced && conditionals with if statements
+- Fixed git commands: use git -C to avoid cwd side-effects
+- Added python3-dev to prerequisites
+- PM2 startup wrapped in || true (non-fatal)
+- Extended health check wait to 12 seconds
+- Unique heredoc delimiters (BACKENDENV, AIENV, NGINXCONF)
 
 Previous version: 3.1.0
 
