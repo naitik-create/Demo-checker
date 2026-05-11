@@ -6,7 +6,7 @@ export const Meeting = sequelize.define(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     title: { type: DataTypes.STRING, allowNull: false },
-    teamsMeetingId: { type: DataTypes.STRING, allowNull: false, unique: true },
+    teamsMeetingId: { type: DataTypes.STRING, allowNull: false },
     consultantId: { type: DataTypes.UUID, allowNull: false, references: { model: "users", key: "id" } },
     participants: { type: DataTypes.JSONB, defaultValue: [] },
     startTime: { type: DataTypes.DATE, allowNull: false },
@@ -37,6 +37,7 @@ export const Meeting = sequelize.define(
     tableName: "meetings",
     timestamps: true,
     indexes: [
+      { fields: ["teamsMeetingId", "consultantId"], unique: true },
       { fields: ["consultantId"] },
       { fields: ["startTime"] },
       { fields: ["status"] },
