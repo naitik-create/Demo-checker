@@ -63,6 +63,7 @@ function scoreFromAnalysis(analysis) {
 
   const riskCount = Object.values(risks).filter(r => r.present_boolean === true).length;
   const riskDeduction = riskCount * 5;
+  const sentiment = analysis?.sentiment || "neutral";
 
   return {
     discoveryScore,
@@ -71,7 +72,8 @@ function scoreFromAnalysis(analysis) {
     objectionsScore,
     engagementScore,
     closeScore,
-    riskDeduction
+    riskDeduction,
+    sentiment
   };
 }
 

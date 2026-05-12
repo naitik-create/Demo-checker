@@ -1,4 +1,7 @@
 // Max per dimension: Discovery=30, Rapport=40, Demo=70, Objections=50, Engagement=55, Close=45 → Total=290
+// Sentiment multiplier: positive=×1.10, neutral=×1.00, negative=×0.90
+const SENTIMENT_MULTIPLIER = { positive: 1.10, neutral: 1.00, negative: 0.90 };
+
 export function calculateDemoScores({
   discoveryScore,
   rapportScore,
@@ -6,7 +9,8 @@ export function calculateDemoScores({
   objectionsScore,
   engagementScore,
   closeScore,
-  riskDeduction
+  riskDeduction,
+  sentiment = "neutral"
 }) {
   const scores = {
     discoveryScore: Number(discoveryScore || 0),
@@ -27,7 +31,8 @@ export function calculateDemoScores({
     scores.closeScore;
 
   const adjusted = weightedTotal - scores.riskDeduction;
-  const totalScore = Math.max(0, Math.min(100, Math.round((adjusted / 290) * 100)));
+  const multiplier = SENTIMENT_MULTIPLIER[String(sentiment).toLowerCase()] ?? 1.00;
+  const totalScore = Math.max(0, Math.min(100, Math.round((adjusted / 290) * 100 * multiplier)));
 
   return { ...scores, weightedTotal, totalScore };
 }

@@ -259,8 +259,9 @@ function scoreFromAnalysis(analysis) {
 
   const riskCount = Object.values(risks).filter(r => r.present_boolean === true).length;
   const riskDeduction = riskCount * 5;
+  const sentiment = analysis?.sentiment || "neutral";
 
-  return calculateDemoScores({ discoveryScore, rapportScore, demoScore, objectionsScore, engagementScore, closeScore, riskDeduction });
+  return calculateDemoScores({ discoveryScore, rapportScore, demoScore, objectionsScore, engagementScore, closeScore, riskDeduction, sentiment });
 }
 
 export async function analyzeAndScoreMeeting(meeting, { transcriptText, source = "unknown" }) {
