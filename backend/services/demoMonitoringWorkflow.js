@@ -227,34 +227,41 @@ function scoreFromAnalysis(analysis) {
   const kpis = analysis?.structuredDetails || {};
   const risks = analysis?.riskFlags || {};
 
-  const getKPI = (name, weight) => Number(kpis[name]?.score_1_to_5 || 1) * weight;
+  const getKPI = (name, weight) => Number(kpis[name]?.score_1_to_5 || kpis[name]?.score || 1) * weight;
 
-  // Discovery — max 30
-  const discoveryScore = getKPI("Pain identification", 4) +
-                         getKPI("Current infra and state mapping", 2);
+  // Discovery — max 75 (matches demoKpiFramework.js)
+  const discoveryScore = getKPI("Pain identification", 5) +
+                         getKPI("Current infra and state mapping", 3) +
+                         getKPI("Stakeholder mapping", 4) +
+                         getKPI("Competition identification", 3);
 
-  // Opening & Rapport — max 40
-  const rapportScore = getKPI("Active listening signals", 4) +
+  // Rapport — max 70
+  const rapportScore = getKPI("Agenda setting", 3) +
+                       getKPI("Personalisation", 3) +
+                       getKPI("Active listening signals", 4) +
                        getKPI("Talk-to-listen ratio", 4);
 
-  // Demo Delivery — max 70
-  const demoScore = getKPI("Handling technical Qs", 5) +
-                    getKPI("Relevance of demo flow", 4) +
-                    getKPI("Value articulation", 3) +
-                    getKPI("Story-based narrative", 2);
+  // Demo Delivery — max 85
+  const demoScore = getKPI("Relevance of demo flow", 5) +
+                    getKPI("Story-based narrative", 4) +
+                    getKPI("Value articulation", 5) +
+                    getKPI("Handling technical Qs", 3);
 
-  // Objection Handling — max 50
-  const objectionsScore = getKPI("Resolution quality", 4) +
-                          getKPI("Competitor handling", 4) +
-                          getKPI("Price / ROI discussion", 2);
+  // Objection Handling — max 70
+  const objectionsScore = getKPI("Objection recognition", 4) +
+                          getKPI("Resolution quality", 4) +
+                          getKPI("Competitor handling", 3) +
+                          getKPI("Price / ROI discussion", 3);
 
-  // Prospect Engagement — max 55
-  const engagementScore = getKPI("Sentiment tone", 5) +
-                          getKPI("Questions asked by prospect", 4) +
-                          getKPI("Use case confirmation", 2);
+  // Prospect Engagement — max 80
+  const engagementScore = getKPI("Questions asked by prospect", 4) +
+                          getKPI("Use case confirmation", 5) +
+                          getKPI("Sentiment tone", 3) +
+                          getKPI("Internal mention", 4);
 
-  // Next Steps & Close — max 45
+  // Next Steps & Close — max 65
   const closeScore = getKPI("Clear next step set", 5) +
+                     getKPI("Timeline established", 4) +
                      getKPI("Mutual action plan", 4);
 
   const riskCount = Object.values(risks).filter(r => r.present_boolean === true).length;

@@ -186,7 +186,15 @@ export function buildDemoKpiAssessment(report) {
   const riskCount = dimensions.find(d => d.risk)?.kpis.filter(k => k.present).length || 0;
   const riskDeductionPoints = riskCount * 5;
   const adjustedScore = totalWeightedScore - riskDeductionPoints;
-  const finalScore100 = Math.max(0, Math.min(100, Math.round((adjustedScore / weightedMaxTotal) * 100)));
+
+  // Matches backend demoScoringEngine.js exactly
+  const SENTIMENT_MULTIPLIER = { positive: 1.10, neutral: 1.00, negative: 1.00 };
+  const sentimentMultiplier = SENTIMENT_MULTIPLIER[String(report?.sentiment || "neutral").toLowerCase()] ?? 1.00;
+  const questionsCount = Number(report?.questionsCount || 0);
+  const qaPairsCount = Array.isArray(report?.qaPairs) ? report.qaPairs.length : 0;
+  const questionsMultiplier = (questionsCount > 0 && qaPairsCount >= questionsCount) ? 1.05 : 1.00;
+
+  const finalScore100 = Math.max(0, Math.min(100, Math.round((adjustedScore / weightedMaxTotal) * 100 * sentimentMultiplier * questionsMultiplier)));
 
   let verdict = "Average";
   if (finalScore100 >= 80) verdict = "Excellent";
