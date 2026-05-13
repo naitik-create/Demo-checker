@@ -3,6 +3,13 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { apiFetch } from "../api/client.js";
 
+function thS(width, align) {
+  return { padding: "10px 16px", textAlign: align, fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", width: width !== "auto" ? width : undefined, whiteSpace: "nowrap" };
+}
+function tdS(align) {
+  return { padding: "13px 16px", textAlign: align, verticalAlign: "middle" };
+}
+
 function toDateStrUTC(d) {
   // Expect/produce YYYY-MM-DD in UTC (for consistent server filtering).
   const dt = d instanceof Date ? d : new Date(d);
@@ -405,45 +412,108 @@ export default function PresalesCompleteReportPage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card__head">
-          <h2>Preview</h2>
-          <span className="muted">This preview matches the PDF structure</span>
+      <div className="card" style={{ marginTop: 16, padding: 0, overflow: "hidden" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid var(--card-border)" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800 }}>Preview</h2>
+            <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>Ranked by average score — matches PDF structure</p>
+          </div>
+          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.06)", border: "1px solid var(--card-border)", borderRadius: 99, padding: "3px 12px" }}>
+            {consultants.length} consultant{consultants.length !== 1 ? "s" : ""}
+          </span>
         </div>
 
         {state.loading ? (
-          <div className="muted" style={{ padding: 12 }}>
-            Loading report data...
-          </div>
-        ) : consultants.length ? (
-          <div className="table">
-            <div className="table__row table__row--head">
-              <div>Consultant</div>
-              <div>Total Demos</div>
-              <div>Avg Score</div>
-              <div>Top Demo</div>
-            </div>
-            {consultants.map((c) => {
-              const top = (c.demos || [])[0];
-              return (
-                <div key={c.consultant?.id || c.consultant?.email || Math.random()} className="table__row">
-                  <div className="ellipsis">
-                    {c.consultant?.name || "—"}
-                    <span className="muted">({c.consultant?.email || "—"})</span>
-                  </div>
-                  <div>{c.totalDemos ?? 0}</div>
-                  <div>{c.averageScore ?? "—"}</div>
-                  <div className="muted">
-                    {top ? `${top.title.slice(0, 22)}…` : "—"}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading report data…</div>
+        ) : consultants.length === 0 ? (
+          <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>No demo scores found for the selected date window.</div>
         ) : (
-          <div className="muted" style={{ padding: 12 }}>
-            No demo scores found for the selected date window.
-          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.87rem" }}>
+            <thead>
+              <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--card-border)" }}>
+                <th style={thS("52px", "center")}>#</th>
+                <th style={thS("auto", "left")}>Consultant</th>
+                <th style={thS("110px", "center")}>Total Demos</th>
+                <th style={thS("130px", "center")}>Avg Score</th>
+                <th style={thS("auto", "left")}>Top Demo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...consultants]
+                .sort((a, b) => (b.averageScore ?? -1) - (a.averageScore ?? -1))
+                .map((c, idx) => {
+                  const rank = idx + 1;
+                  const sc = c.averageScore ?? null;
+                  const top = (c.demos || [])[0];
+                  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+                  const initials = (c.consultant?.name || "?")[0].toUpperCase();
+                  const hue = (c.consultant?.name?.charCodeAt(0) || 0) * 15;
+                  return (
+                    <tr key={c.consultant?.id || c.consultant?.email || idx}
+                      style={{ borderBottom: "1px solid var(--card-border)" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(99,102,241,0.04)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      {/* Rank */}
+                      <td style={tdS("center")}>
+                        {medal ? (
+                          <span style={{ fontSize: "1.2rem" }}>{medal}</span>
+                        ) : (
+                          <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--text-muted)" }}>{rank}</span>
+                        )}
+                      </td>
+
+                      {/* Consultant */}
+                      <td style={tdS("left")}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: `hsl(${hue},55%,38%)`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "0.85rem", color: "#fff" }}>
+                            {initials}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.consultant?.name || "—"}</div>
+                            <div style={{ fontSize: "0.73rem", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.consultant?.email || ""}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Total Demos */}
+                      <td style={tdS("center")}>
+                        <span style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--card-border)", borderRadius: 99, padding: "3px 12px", fontWeight: 600 }}>
+                          {c.totalDemos ?? 0}
+                        </span>
+                      </td>
+
+                      {/* Avg Score */}
+                      <td style={tdS("center")}>
+                        {sc != null ? (
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                            <span style={{ fontWeight: 800, fontSize: "1rem", color: scoreColor(sc), background: scoreColor(sc) + "18", border: "1px solid " + scoreColor(sc) + "40", borderRadius: 99, padding: "3px 14px" }}>
+                              {sc}
+                            </span>
+                            <div style={{ width: 80, height: 4, borderRadius: 99, background: "var(--card-border)", overflow: "hidden" }}>
+                              <div style={{ height: "100%", borderRadius: 99, width: `${sc}%`, background: scoreColor(sc) }} />
+                            </div>
+                          </div>
+                        ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                      </td>
+
+                      {/* Top Demo */}
+                      <td style={tdS("left")}>
+                        {top ? (
+                          <div>
+                            <div style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>{top.title}</div>
+                            {top.startTime && (
+                              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{new Date(top.startTime).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
+                            )}
+                          </div>
+                        ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -547,36 +617,69 @@ export default function PresalesCompleteReportPage() {
       ) : null}
 
       {selectedConsultant ? (
-        <div className="card" style={{ marginTop: 16 }}>
-          <div className="card__head">
-            <h2>Selected Consultant Detailed Scores</h2>
-            <span className="muted">All score dimensions per demo</span>
-          </div>
-          <div className="table">
-            <div className="table__row table__row--head">
-              <div style={{ flex: 2 }}>Demo</div>
-              <div>Date</div>
-              <div>Disc</div>
-              <div>Rapp</div>
-              <div>Demo</div>
-              <div>Obj</div>
-              <div>Eng</div>
-              <div>Close</div>
-              <div>Total</div>
+        <div className="card" style={{ marginTop: 16, padding: 0, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid var(--card-border)" }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800 }}>Detailed Scores</h2>
+              <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>{selectedConsultant.consultant?.name || "Consultant"} — all dimensions per demo</p>
             </div>
-            {(selectedConsultant.demos || []).map((d) => (
-              <div key={d.meetingId} className="table__row">
-                <div className="ellipsis" style={{ flex: 2 }}>{d.title || "—"}</div>
-                <div>{d.startTime ? new Date(d.startTime).toLocaleDateString("en-GB") : "—"}</div>
-                <div>{d.discoveryScore ?? "—"}</div>
-                <div>{d.rapportScore ?? "—"}</div>
-                <div>{d.demoScore ?? "—"}</div>
-                <div>{d.objectionsScore ?? "—"}</div>
-                <div>{d.engagementScore ?? "—"}</div>
-                <div>{d.closeScore ?? "—"}</div>
-                <div style={{ fontWeight: 700 }}>{d.totalScore ?? "—"}</div>
-              </div>
-            ))}
+            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.06)", border: "1px solid var(--card-border)", borderRadius: 99, padding: "3px 12px" }}>
+              {(selectedConsultant.demos || []).length} demo{(selectedConsultant.demos || []).length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.84rem", minWidth: 700 }}>
+              <thead>
+                <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--card-border)" }}>
+                  <th style={thS("auto", "left")}>Demo Title</th>
+                  <th style={thS("110px", "center")}>Date</th>
+                  <th style={thS("70px", "center")}>Disc</th>
+                  <th style={thS("70px", "center")}>Rapp</th>
+                  <th style={thS("70px", "center")}>Demo</th>
+                  <th style={thS("70px", "center")}>Obj</th>
+                  <th style={thS("70px", "center")}>Eng</th>
+                  <th style={thS("70px", "center")}>Close</th>
+                  <th style={thS("90px", "center")}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(selectedConsultant.demos || []).map((d) => {
+                  const sc = d.totalScore ?? null;
+                  const dimCell = (val) => (
+                    <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>{val ?? "—"}</span>
+                  );
+                  return (
+                    <tr key={d.meetingId} style={{ borderBottom: "1px solid var(--card-border)" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(99,102,241,0.04)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <td style={{ ...tdS("left"), maxWidth: 0 }}>
+                        <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.title || "—"}</div>
+                        {d.clientName && <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{d.clientName}</div>}
+                      </td>
+                      <td style={tdS("center")}>
+                        <span style={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                          {d.startTime ? new Date(d.startTime).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                        </span>
+                      </td>
+                      <td style={tdS("center")}>{dimCell(d.discoveryScore)}</td>
+                      <td style={tdS("center")}>{dimCell(d.rapportScore)}</td>
+                      <td style={tdS("center")}>{dimCell(d.demoScore)}</td>
+                      <td style={tdS("center")}>{dimCell(d.objectionsScore)}</td>
+                      <td style={tdS("center")}>{dimCell(d.engagementScore)}</td>
+                      <td style={tdS("center")}>{dimCell(d.closeScore)}</td>
+                      <td style={tdS("center")}>
+                        {sc != null ? (
+                          <span style={{ fontWeight: 800, color: scoreColor(sc), background: scoreColor(sc) + "18", border: "1px solid " + scoreColor(sc) + "40", borderRadius: 99, padding: "3px 10px", fontSize: "0.85rem" }}>
+                            {sc}
+                          </span>
+                        ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : null}

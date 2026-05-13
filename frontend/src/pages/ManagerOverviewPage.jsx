@@ -27,14 +27,23 @@ export default function ManagerOverviewPage() {
     meetings: [], consultants: [], totalMeetings: 0
   });
   const [monSearch, setMonSearch] = useState("");
-  const [monFrom, setMonFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30);
-    return d.toISOString().split("T")[0];
-  });
-  const [monTo, setMonTo] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0]);
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0]; })();
+  const defaultTo = new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
+  const [monFrom, setMonFrom] = useState(defaultFrom);
+  const [monTo, setMonTo] = useState(defaultTo);
+  const [appliedFrom, setAppliedFrom] = useState(defaultFrom);
+  const [appliedTo, setAppliedTo] = useState(defaultTo);
   const [selectedConsultants, setSelectedConsultants] = useState(new Set());
   const [showConsultantDropdown, setShowConsultantDropdown] = useState(false);
   const consultantDropdownRef = useRef(null);
+  const [monPage, setMonPage] = useState(1);
+  const MON_PAGE_SIZE = 10;
+
+  function applyDateFilter() {
+    setAppliedFrom(monFrom);
+    setAppliedTo(monTo);
+    setMonPage(1);
+  }
 
   async function loadData() {
     setState((s) => ({ ...s, loading: true, error: "" }));
@@ -112,8 +121,10 @@ export default function ManagerOverviewPage() {
   // Monitored meetings with search + date + consultant filter (only completed/analyzed)
   const monitoredMeetings = useMemo(() => {
     const all = state.meetings.filter(m => m.monitored && m.analysisStatus === "completed");
-    const from = new Date(monFrom); from.setHours(0,0,0,0);
-    const to = new Date(monTo); to.setHours(23,59,59,999);
+    const [fy, fm, fd] = appliedFrom.split("-").map(Number);
+    const [ty, tm, td] = appliedTo.split("-").map(Number);
+    const from = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+    const to = new Date(ty, tm - 1, td, 23, 59, 59, 999);
     const q = monSearch.toLowerCase().trim();
     return all.filter(m => {
       const s = m.startTime ? new Date(m.startTime) : null;
@@ -122,7 +133,7 @@ export default function ManagerOverviewPage() {
       if (selectedConsultants.size > 0 && !selectedConsultants.has(m.consultant?.id)) return false;
       return true;
     }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-  }, [state.meetings, monSearch, monFrom, monTo, selectedConsultants]);
+  }, [state.meetings, monSearch, appliedFrom, appliedTo, selectedConsultants]);
 
   function toggleConsultant(id) {
     setSelectedConsultants(prev => {
@@ -130,6 +141,7 @@ export default function ManagerOverviewPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+    setMonPage(1);
   }
 
   return (
@@ -270,7 +282,7 @@ export default function ManagerOverviewPage() {
               <Search size={14} style={{color:"var(--text-muted)"}}/>
               <input type="text" placeholder="Search by title or consultant…" className="input"
                 style={{border:"none",background:"transparent",padding:"2px 4px",fontSize:"0.82rem",width:200,outline:"none"}}
-                value={monSearch} onChange={e => setMonSearch(e.target.value)}/>
+                value={monSearch} onChange={e => { setMonSearch(e.target.value); setMonPage(1); }}/>
             </div>
             <label style={{display:"flex",alignItems:"center",gap:4,fontSize:"0.82rem",color:"var(--text-muted)"}}>
               From
@@ -282,6 +294,13 @@ export default function ManagerOverviewPage() {
               <input type="date" className="input" style={{padding:"4px 8px",fontSize:"0.82rem",width:140}}
                 value={monTo} onChange={e => setMonTo(e.target.value)}/>
             </label>
+            <button
+              className="btn btn--sm"
+              onClick={applyDateFilter}
+              style={{padding:"4px 14px",fontSize:"0.82rem"}}
+            >
+              Apply
+            </button>
 
             {/* Consultant checkbox filter */}
             <div ref={consultantDropdownRef} style={{position:"relative"}}>
@@ -310,8 +329,8 @@ export default function ManagerOverviewPage() {
                   {/* Header */}
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
                     padding:"4px 12px 8px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-                    <span style={{fontSize:"0.75rem",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.05em"}}>Filter by Consultant</span>
-                    <button style={{background:"none",border:"none",cursor:"pointer",padding:2,color:"var(--text-muted)",display:"flex"}}
+                    <span style={{fontSize:"0.75rem",fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:"0.05em"}}>Filter by Consultant</span>
+                    <button style={{background:"none",border:"none",cursor:"pointer",padding:2,color:"rgba(255,255,255,0.5)",display:"flex"}}
                       onClick={() => setShowConsultantDropdown(false)}><X size={14}/></button>
                   </div>
 
@@ -319,8 +338,8 @@ export default function ManagerOverviewPage() {
                   {selectedConsultants.size > 0 && (
                     <button style={{
                       display:"block",width:"100%",textAlign:"left",background:"none",border:"none",
-                      cursor:"pointer",padding:"6px 14px",fontSize:"0.8rem",color:"var(--accent)",fontWeight:600
-                    }} onClick={() => setSelectedConsultants(new Set())}>
+                      cursor:"pointer",padding:"6px 14px",fontSize:"0.8rem",color:"#818cf8",fontWeight:600
+                    }} onClick={() => { setSelectedConsultants(new Set()); setMonPage(1); }}>
                       Clear all
                     </button>
                   )}
@@ -328,20 +347,20 @@ export default function ManagerOverviewPage() {
                   {/* Consultant list */}
                   <div style={{maxHeight:240,overflowY:"auto"}}>
                     {state.consultants.length === 0 && (
-                      <div style={{padding:"10px 14px",fontSize:"0.82rem",color:"var(--text-muted)"}}>No consultants</div>
+                      <div style={{padding:"10px 14px",fontSize:"0.82rem",color:"rgba(255,255,255,0.5)"}}>No consultants</div>
                     )}
                     {state.consultants.map(c => (
                       <label key={c.id} style={{
                         display:"flex",alignItems:"center",gap:10,padding:"7px 14px",
                         cursor:"pointer",fontSize:"0.84rem",
-                        background: selectedConsultants.has(c.id) ? "#252840" : "#1a1d2e",
+                        background: selectedConsultants.has(c.id) ? "rgba(99,102,241,0.15)" : "transparent",
                         transition:"background 0.15s"
                       }}>
                         <input type="checkbox" checked={selectedConsultants.has(c.id)}
                           onChange={() => toggleConsultant(c.id)}
-                          style={{accentColor:"var(--purple)",width:15,height:15,flexShrink:0}}/>
+                          style={{accentColor:"#818cf8",width:15,height:15,flexShrink:0}}/>
                         <span style={{fontWeight: selectedConsultants.has(c.id) ? 600 : 400,
-                          color: selectedConsultants.has(c.id) ? "var(--purple)" : "var(--text)"}}>{c.name}</span>
+                          color: selectedConsultants.has(c.id) ? "#818cf8" : "rgba(255,255,255,0.85)"}}>{c.name}</span>
                       </label>
                     ))}
                   </div>
@@ -350,56 +369,123 @@ export default function ManagerOverviewPage() {
             </div>
           </div>
         </div>
-        <div className="table">
-          <div className="table__row table__row--head">
-            <div>Title</div>
-            <div>Consultant</div>
-            <div>Date</div>
-            <div>Status</div>
-            <div>Score</div>
-            <div></div>
-          </div>
-          {monitoredMeetings.map(m => {
-            const sc = scoreOrNull(m.score);
-            const isAnalyzed = m.analysisStatus === "completed";
-            return (
-              <div key={m.id} className="table__row">
-                <div className="ellipsis" style={{fontWeight:500}}>{m.title}</div>
-                <div className="muted">{m.consultant?.name || "—"}</div>
-                <div className="muted">{new Date(m.startTime).toLocaleDateString("en-IN")}</div>
-                <div>
-                  <span className={`badge badge--${isAnalyzed ? "green" : "amber"}`}
-                    style={{display:"inline-flex",alignItems:"center",gap:4}}>
-                    {isAnalyzed ? <><CheckCircle size={10}/> Analyzed</> : <><Activity size={10}/> Pending</>}
-                  </span>
+        {(() => {
+          const totalPages = Math.max(1, Math.ceil(monitoredMeetings.length / MON_PAGE_SIZE));
+          const safePage = Math.min(monPage, totalPages);
+          const pageItems = monitoredMeetings.slice((safePage - 1) * MON_PAGE_SIZE, safePage * MON_PAGE_SIZE);
+
+          return (
+            <>
+              <div className="table">
+                <div className="table__row table__row--head">
+                  <div>Title</div>
+                  <div>Consultant</div>
+                  <div>Date</div>
+                  <div>Status</div>
+                  <div>Score</div>
+                  <div></div>
                 </div>
-                <div>
-                  {sc !== null ? (
-                    <span className="badge" style={{
-                      background: sc >= 80 ? "rgba(52,211,153,0.12)" : sc >= 60 ? "rgba(59,130,246,0.12)" : "rgba(251,146,60,0.12)",
-                      borderColor: sc >= 80 ? "rgba(52,211,153,0.3)" : sc >= 60 ? "rgba(59,130,246,0.3)" : "rgba(251,146,60,0.3)",
-                      color: ScoreColor(sc)
-                    }}>{sc}/100</span>
-                  ) : "—"}
-                </div>
-                <div>
-                  {isAnalyzed ? (
-                    <Link className="link" to={`/reports/${m.id}`} style={{display:"flex",alignItems:"center",gap:4}}>
-                      <Eye size={12}/> Report
-                    </Link>
-                  ) : (
-                    <span className="muted" style={{fontSize:"0.8rem"}}>Auto-analyzing…</span>
-                  )}
-                </div>
+                {pageItems.map(m => {
+                  const sc = scoreOrNull(m.score);
+                  const isAnalyzed = m.analysisStatus === "completed";
+                  return (
+                    <div key={m.id} className="table__row">
+                      <div className="ellipsis" style={{fontWeight:500}}>{m.title}</div>
+                      <div className="muted">{m.consultant?.name || "—"}</div>
+                      <div className="muted">{new Date(m.startTime).toLocaleDateString("en-IN")}</div>
+                      <div>
+                        <span className={`badge badge--${isAnalyzed ? "green" : "amber"}`}
+                          style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                          {isAnalyzed ? <><CheckCircle size={10}/> Analyzed</> : <><Activity size={10}/> Pending</>}
+                        </span>
+                      </div>
+                      <div>
+                        {sc !== null ? (
+                          <span className="badge" style={{
+                            background: sc >= 80 ? "rgba(52,211,153,0.12)" : sc >= 60 ? "rgba(59,130,246,0.12)" : "rgba(251,146,60,0.12)",
+                            borderColor: sc >= 80 ? "rgba(52,211,153,0.3)" : sc >= 60 ? "rgba(59,130,246,0.3)" : "rgba(251,146,60,0.3)",
+                            color: ScoreColor(sc)
+                          }}>{sc}/100</span>
+                        ) : "—"}
+                      </div>
+                      <div>
+                        {isAnalyzed ? (
+                          <Link className="link" to={`/reports/${m.id}`} style={{display:"flex",alignItems:"center",gap:4}}>
+                            <Eye size={12}/> Report
+                          </Link>
+                        ) : (
+                          <span className="muted" style={{fontSize:"0.8rem"}}>Auto-analyzing…</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!monitoredMeetings.length && !state.loading && (
+                  <div className="muted" style={{padding:"24px",textAlign:"center"}}>
+                    No analyzed meetings found. Meetings appear here once transcript is uploaded and AI analysis is complete.
+                  </div>
+                )}
               </div>
-            );
-          })}
-          {!monitoredMeetings.length && !state.loading && (
-            <div className="muted" style={{padding:"24px",textAlign:"center"}}>
-              No analyzed meetings found. Meetings appear here once transcript is uploaded and AI analysis is complete.
-            </div>
-          )}
-        </div>
+
+              {/* Pagination */}
+              {monitoredMeetings.length > 0 && (
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,flexWrap:"wrap",gap:8}}>
+                  <span style={{fontSize:"0.8rem",color:"var(--text-muted)"}}>
+                    Showing {(safePage - 1) * MON_PAGE_SIZE + 1}–{Math.min(safePage * MON_PAGE_SIZE, monitoredMeetings.length)} of {monitoredMeetings.length}
+                  </span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setMonPage(1)}
+                      disabled={safePage === 1}
+                      style={{padding:"3px 10px",fontSize:"0.8rem"}}
+                    >«</button>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setMonPage(p => Math.max(1, p - 1))}
+                      disabled={safePage === 1}
+                      style={{padding:"3px 10px",fontSize:"0.8rem"}}
+                    >‹ Prev</button>
+                    {Array.from({length: totalPages}, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                      .reduce((acc, p, idx, arr) => {
+                        if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, i) => p === "..." ? (
+                        <span key={"ellipsis-" + i} style={{fontSize:"0.8rem",color:"var(--text-muted)",padding:"0 4px"}}>…</span>
+                      ) : (
+                        <button key={p}
+                          className="btn btn--sm"
+                          onClick={() => setMonPage(p)}
+                          style={{
+                            padding:"3px 10px",fontSize:"0.8rem",minWidth:32,
+                            background: p === safePage ? "var(--accent)" : "rgba(255,255,255,0.06)",
+                            color: p === safePage ? "#fff" : "var(--text-muted)",
+                            borderColor: p === safePage ? "var(--accent)" : "var(--card-border)"
+                          }}
+                        >{p}</button>
+                      ))
+                    }
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setMonPage(p => Math.min(totalPages, p + 1))}
+                      disabled={safePage === totalPages}
+                      style={{padding:"3px 10px",fontSize:"0.8rem"}}
+                    >Next ›</button>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setMonPage(totalPages)}
+                      disabled={safePage === totalPages}
+                      style={{padding:"3px 10px",fontSize:"0.8rem"}}
+                    >»</button>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* ─── System Flow Diagram ─── */}

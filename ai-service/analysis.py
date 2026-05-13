@@ -3,7 +3,7 @@ Demo Meeting Transcript Analysis Service
 Pure-Python fallback (no PyTorch / NumPy / Transformers required).
 Uses OpenAI GPT when OPENAI_API_KEY is set, otherwise uses fast keyword-based analysis.
 """
-__version__ = "3.1.2"
+__version__ = "3.1.3"
 import json
 import os
 import re

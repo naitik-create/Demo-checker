@@ -280,86 +280,6 @@ export default function MeetingReportPage() {
     });
   }
 
-  function renderScoreBasis() {
-    if (!kpiAssessment) return null;
-    const scoredDims = kpiAssessment.dimensions.filter((d) => !d.risk);
-    return (
-      <div className="card">
-        <div className="card__head">
-          <div>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: 800 }}>How This Score Was Calculated</h2>
-            <p className="muted" style={{ marginTop: 4, fontSize: "0.85rem" }}>
-              Each dimension contributes weighted KPI points to the final score
-            </p>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "1.8rem", fontWeight: 900, color: "var(--accent)" }}>{kpiAssessment.finalScore}/100</div>
-            <div className="muted" style={{ fontSize: "0.75rem" }}>Final Score</div>
-          </div>
-        </div>
-
-        {/* Dimension contribution table */}
-        <div style={{ overflowX: "auto", marginTop: 8 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
-            <thead>
-              <tr style={{ borderBottom: "2px solid var(--card-border)" }}>
-                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600 }}>Dimension</th>
-                <th style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 600 }}>Earned</th>
-                <th style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 600 }}>Max</th>
-                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600, minWidth: 140 }}>Performance</th>
-                <th style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 600 }}>%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scoredDims.map((dim) => {
-                const pct = Math.round((dim.weightedScore / dim.weightMax) * 100);
-                const color = pct >= 70 ? "#4ade80" : pct >= 45 ? "#fbbf24" : "#f87171";
-                return (
-                  <tr key={dim.id} style={{ borderBottom: "1px solid var(--card-border)" }}>
-                    <td style={{ padding: "10px 12px" }}>
-                      <span style={{ fontWeight: 700, color: dim.tone }}>{dim.label}</span>
-                      <div style={{ fontSize: "0.73rem", color: "var(--text-muted)" }}>{dim.description}</div>
-                    </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: dim.tone }}>{dim.weightedScore}</td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--text-muted)" }}>{dim.weightMax}</td>
-                    <td style={{ padding: "10px 12px" }}>
-                      <div style={{ height: 6, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden", minWidth: 100 }}>
-                        <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: color, transition: "width 0.5s" }} />
-                      </div>
-                    </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color }}>{pct}%</td>
-                  </tr>
-                );
-              })}
-              {/* Risk deduction row */}
-              <tr style={{ borderBottom: "1px solid var(--card-border)", background: kpiAssessment.riskDeductionPoints > 0 ? "rgba(239,68,68,0.05)" : "transparent" }}>
-                <td style={{ padding: "10px 12px" }}>
-                  <span style={{ fontWeight: 700, color: "#ef4444" }}>Risk Deductions</span>
-                  <div style={{ fontSize: "0.73rem", color: "var(--text-muted)" }}>{kpiAssessment.riskCount} flag(s) × −5 pts each</div>
-                </td>
-                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#ef4444" }}>−{kpiAssessment.riskDeductionPoints}</td>
-                <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--text-muted)" }}>0</td>
-                <td style={{ padding: "10px 12px" }} />
-                <td style={{ padding: "10px 12px", textAlign: "right", color: "#ef4444" }}>{kpiAssessment.riskDeductionPoints > 0 ? `−${kpiAssessment.riskDeductionPoints}` : "0"}</td>
-              </tr>
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid var(--card-border)" }}>
-                <td style={{ padding: "10px 12px", fontWeight: 800 }}>Total</td>
-                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 900, color: "var(--accent)", fontSize: "1.05rem" }}>{kpiAssessment.adjustedScore}</td>
-                <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--text-muted)", fontWeight: 700 }}>445</td>
-                <td style={{ padding: "10px 12px" }} />
-                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 900, color: "var(--accent)", fontSize: "1.05rem" }}>{kpiAssessment.finalScore}%</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <div style={{ marginTop: 12, fontSize: "0.8rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px", border: "1px solid var(--card-border)" }}>
-          Formula: ({kpiAssessment.weightedScore} weighted pts − {kpiAssessment.riskDeductionPoints} risk deduction) ÷ 445 × 100 = <strong style={{ color: "var(--text-main)" }}>{kpiAssessment.finalScore}/100</strong>
-        </div>
-      </div>
-    );
-  }
 
   function renderCriticalGaps() {
     if (!kpiAssessment) return null;
@@ -391,6 +311,86 @@ export default function MeetingReportPage() {
       { label: "Partial", sublabel: "Score 3 — Partially done, key elements missed", color: "#fbbf24", bg: "rgba(251,191,36,0.07)", border: "rgba(251,191,36,0.2)", kpis: partialKpis },
     ].filter((g) => g.kpis.length > 0);
 
+    function CriticalGapsAccordion({ severityGroups, kpiGaps }) {
+      const [openIds, setOpenIds] = useState(() => new Set());
+      const toggle = (label) => setOpenIds((prev) => {
+        const next = new Set(prev);
+        next.has(label) ? next.delete(label) : next.add(label);
+        return next;
+      });
+
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {severityGroups.map((group) => {
+            const isOpen = openIds.has(group.label);
+            return (
+              <div key={group.label} style={{ borderRadius: 12, border: "1px solid " + group.border, overflow: "hidden" }}>
+                {/* Severity header — always visible, clickable */}
+                <div
+                  onClick={() => toggle(group.label)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer", userSelect: "none", background: group.bg, transition: "background 0.15s" }}
+                >
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: group.color, flexShrink: 0 }} />
+                  <span style={{ fontWeight: 800, color: group.color, fontSize: "0.95rem" }}>{group.label}</span>
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{group.sublabel}</span>
+                  <span style={{ marginLeft: 4, background: group.color + "22", color: group.color, border: "1px solid " + group.color + "40", borderRadius: 99, padding: "1px 10px", fontSize: "0.75rem", fontWeight: 700 }}>
+                    {group.kpis.length} KPI{group.kpis.length > 1 ? "s" : ""}
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: group.border }} />
+                  <span style={{ fontSize: "1rem", color: group.color, flexShrink: 0 }}>{isOpen ? "▲" : "▼"}</span>
+                </div>
+
+                {/* KPI cards grid — collapsible body */}
+                {isOpen && (
+                  <div style={{ padding: "14px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                    {group.kpis.map((kpi) => (
+                      <div key={kpi.id} style={{ borderRadius: 12, border: "1px solid " + group.border, background: group.bg, overflow: "hidden" }}>
+                        <div style={{ height: 3, background: "linear-gradient(90deg, " + group.color + "80, " + group.color + ")" }} />
+                        <div style={{ padding: "12px 14px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <span style={{ fontSize: "0.7rem", fontWeight: 700, color: kpi.dimTone, background: kpi.dimTone + "18", border: "1px solid " + kpi.dimTone + "35", borderRadius: 99, padding: "2px 8px" }}>
+                              {kpi.dimLabel}
+                            </span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              {[1,2,3,4,5].map((dot) => (
+                                <div key={dot} style={{ width: 7, height: 7, borderRadius: "50%", background: dot <= kpi.score ? group.color : "rgba(255,255,255,0.12)" }} />
+                              ))}
+                              <span style={{ marginLeft: 4, fontSize: "0.75rem", fontWeight: 800, color: group.color }}>{kpi.score}/5</span>
+                            </div>
+                          </div>
+                          <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: 8, lineHeight: 1.3 }}>{kpi.label}</div>
+                          {kpi.reason && kpi.reason !== "Refer to transcript." && (
+                            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.55, marginBottom: 8 }}>
+                              <span style={{ color: group.color, fontWeight: 600 }}>Gap: </span>{kpi.reason}
+                            </div>
+                          )}
+                          {kpi.score >= 2 && kpi.evidence && kpi.evidence !== "N/A" && kpi.evidence !== "None" && !(/meeting recording/i).test(kpi.evidence) && !(/started transc/i).test(kpi.evidence) && !"0123456789".includes(kpi.evidence.trim()[0]) && kpi.evidence.trim().length > 15 && (
+                            <div style={{ fontSize: "0.72rem", fontStyle: "italic", color: "var(--text-muted)", borderLeft: "2px solid " + group.color + "50", paddingLeft: 8, lineHeight: 1.5, opacity: 0.85 }}>
+                              &ldquo;{kpi.evidence}&rdquo;
+                            </div>
+                          )}
+                          {kpiGaps?.[kpi.label]?.whatWasMissing?.length > 0 && (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: "0.7rem", fontWeight: 700, color: group.color, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>What Was Missing</div>
+                              <ul style={{ margin: 0, paddingLeft: 14, display: "flex", flexDirection: "column", gap: 3 }}>
+                                {kpiGaps[kpi.label].whatWasMissing.map((item, i) => (
+                                  <li key={i} style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.5 }}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
     return (
       <div className="card">
         {/* Header */}
@@ -405,73 +405,7 @@ export default function MeetingReportPage() {
             {partialKpis.length > 0 && <span style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 99, padding: "3px 12px", fontSize: "0.78rem", fontWeight: 700 }}>{partialKpis.length} Partial</span>}
           </div>
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {severityGroups.map((group) => (
-            <div key={group.label}>
-              {/* Severity header */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: group.color, flexShrink: 0 }} />
-                <span style={{ fontWeight: 800, color: group.color, fontSize: "0.95rem" }}>{group.label}</span>
-                <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{group.sublabel}</span>
-                <div style={{ flex: 1, height: 1, background: group.border }} />
-              </div>
-
-              {/* KPI cards grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-                {group.kpis.map((kpi) => (
-                  <div key={kpi.id} style={{ borderRadius: 12, border: "1px solid " + group.border, background: group.bg, overflow: "hidden" }}>
-                    {/* Card top strip */}
-                    <div style={{ height: 3, background: "linear-gradient(90deg, " + group.color + "80, " + group.color + ")" }} />
-                    <div style={{ padding: "12px 14px" }}>
-                      {/* Dimension tag + score */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                        <span style={{ fontSize: "0.7rem", fontWeight: 700, color: kpi.dimTone, background: kpi.dimTone + "18", border: "1px solid " + kpi.dimTone + "35", borderRadius: 99, padding: "2px 8px" }}>
-                          {kpi.dimLabel}
-                        </span>
-                        {/* Score dots */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          {[1,2,3,4,5].map((dot) => (
-                            <div key={dot} style={{ width: 7, height: 7, borderRadius: "50%", background: dot <= kpi.score ? group.color : "rgba(255,255,255,0.12)" }} />
-                          ))}
-                          <span style={{ marginLeft: 4, fontSize: "0.75rem", fontWeight: 800, color: group.color }}>{kpi.score}/5</span>
-                        </div>
-                      </div>
-
-                      {/* KPI name */}
-                      <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: 8, lineHeight: 1.3 }}>{kpi.label}</div>
-
-                      {/* Reason */}
-                      {kpi.reason && kpi.reason !== "Refer to transcript." && (
-                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.55, marginBottom: 8 }}>
-                          <span style={{ color: group.color, fontWeight: 600 }}>Gap: </span>{kpi.reason}
-                        </div>
-                      )}
-
-                      {/* Evidence quote — only for score 2/3 and with cleaned evidence */}
-                      {kpi.score >= 2 && kpi.evidence && kpi.evidence !== "N/A" && kpi.evidence !== "None" && !(/meeting recording/i).test(kpi.evidence) && !(/started transc/i).test(kpi.evidence) && !"0123456789".includes(kpi.evidence.trim()[0]) && kpi.evidence.trim().length > 15 && (
-                        <div style={{ fontSize: "0.72rem", fontStyle: "italic", color: "var(--text-muted)", borderLeft: "2px solid " + group.color + "50", paddingLeft: 8, lineHeight: 1.5, opacity: 0.85 }}>
-                          &ldquo;{kpi.evidence}&rdquo;
-                        </div>
-                      )}
-                      {/* What Was Missing bullets from AI kpiGaps */}
-                      {r?.kpiGaps?.[kpi.label]?.whatWasMissing?.length > 0 && (
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ fontSize: "0.7rem", fontWeight: 700, color: group.color, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>What Was Missing</div>
-                          <ul style={{ margin: 0, paddingLeft: 14, display: "flex", flexDirection: "column", gap: 3 }}>
-                            {r.kpiGaps[kpi.label].whatWasMissing.map((item, i) => (
-                              <li key={i} style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.5 }}>{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <CriticalGapsAccordion severityGroups={severityGroups} kpiGaps={r?.kpiGaps} />
       </div>
     );
   }
@@ -519,18 +453,44 @@ export default function MeetingReportPage() {
     const pctColor = (pct) => pct >= 70 ? "#4ade80" : pct >= 45 ? "#fbbf24" : "#f87171";
 
     return (
+      <ImprovementPlanAccordion
+        actionableDims={actionableDims}
+        parsedCons={parsedCons}
+        parsedTips={parsedTips}
+        allKpiLabels={allKpiLabels}
+        kpiTipMap={kpiTipMap}
+        pctColor={pctColor}
+        r={r}
+      />
+    );
+  }
+
+  function ImprovementPlanAccordion({ actionableDims, parsedCons, parsedTips, allKpiLabels, kpiTipMap, pctColor, r }) {
+    const [openIds, setOpenIds] = useState(() => new Set());
+    const toggle = (id) => setOpenIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+    return (
       <div className="card">
         <div className="card__head">
           <div>
             <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#38bdf8" }}>Improvement Plan</h2>
             <p className="muted" style={{ marginTop: 4, fontSize: "0.85rem" }}>
-              Dimension-by-dimension coaching plan — lowest performing first
+              Dimension-by-dimension coaching plan — click a dimension to expand
             </p>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setOpenIds(new Set(actionableDims.map(d => d.id)))} style={{ background: "rgba(56,189,248,0.08)", border: "1px solid rgba(56,189,248,0.2)", color: "#38bdf8", borderRadius: 6, padding: "4px 10px", fontSize: "0.75rem", cursor: "pointer" }}>Expand all</button>
+            <button onClick={() => setOpenIds(new Set())} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--card-border)", color: "var(--text-muted)", borderRadius: 6, padding: "4px 10px", fontSize: "0.75rem", cursor: "pointer" }}>Collapse all</button>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
           {actionableDims.map((dim) => {
+            const isOpen = openIds.has(dim.id);
             const dimCons = parsedCons.filter((c) => c.dim.toLowerCase() === dim.label.toLowerCase());
             const dimObjCons = (r?.cons || []).filter((c) => c && typeof c === "object" && c.dimension?.toLowerCase() === dim.label.toLowerCase());
             const dimTips = parsedTips.filter((t) => t.dim.toLowerCase() === dim.label.toLowerCase());
@@ -539,22 +499,33 @@ export default function MeetingReportPage() {
             const col = pctColor(pct);
 
             return (
-              <div key={dim.id} style={{ borderRadius: 12, border: `1px solid ${dim.tone}30`, overflow: "hidden" }}>
-                {/* Dimension header */}
-                <div style={{ padding: "12px 16px", background: `${dim.tone}10`, borderLeft: `4px solid ${dim.tone}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <div>
-                    <span style={{ fontWeight: 800, fontSize: "0.98rem", color: dim.tone }}>{dim.label}</span>
-                    <span className="muted" style={{ marginLeft: 8, fontSize: "0.78rem" }}>{dim.description}</span>
+              <div key={dim.id} style={{ borderRadius: 10, border: `1px solid ${dim.tone}30`, overflow: "hidden" }}>
+                {/* Accordion header — always visible, clickable */}
+                <div
+                  onClick={() => toggle(dim.id)}
+                  style={{ padding: "10px 14px", background: `${dim.tone}10`, borderLeft: `4px solid ${dim.tone}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", cursor: "pointer", userSelect: "none" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.95rem", color: dim.tone }}>{dim.label}</span>
+                    <span className="muted" style={{ fontSize: "0.75rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dim.description}</span>
+                    {weakKpis.length > 0 && (
+                      <span style={{ fontSize: "0.7rem", background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 99, padding: "1px 8px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        {weakKpis.length} gap{weakKpis.length > 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ height: 6, width: 80, borderRadius: 99, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <div style={{ height: 5, width: 70, borderRadius: 99, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: col }} />
                     </div>
-                    <span style={{ fontWeight: 800, color: col, fontSize: "0.85rem" }}>{pct}%</span>
-                    <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>({dim.weightedScore}/{dim.weightMax} pts)</span>
+                    <span style={{ fontWeight: 800, color: col, fontSize: "0.82rem" }}>{pct}%</span>
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>({dim.weightedScore}/{dim.weightMax})</span>
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginLeft: 4 }}>{isOpen ? "▲" : "▼"}</span>
                   </div>
                 </div>
 
+                {/* Accordion body — only rendered when open */}
+                {isOpen && (
                 <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
                   {/* What went wrong (cons for this dimension) */}
                   {(dimObjCons.length > 0 || dimCons.length > 0) && (
@@ -642,6 +613,7 @@ export default function MeetingReportPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             );
           })}
@@ -714,111 +686,111 @@ export default function MeetingReportPage() {
           </div>
         </div>
 
-        {/* Dimension-wise Breakdown Cards */}
-        <div style={{ marginTop: 32 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-            <h2 style={{ fontSize: "1.4rem", fontWeight: 800, margin: 0 }}>Detailed Performance Breakdown</h2>
-            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "3px 12px", border: "1px solid var(--card-border)" }}>
-              {scoredDimensions.length} dimensions
-            </span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-            {scoredDimensions.map((dim) => {
-              const pct = Math.round((dim.weightedScore / dim.weightMax) * 100);
-              return (
-                <div
-                  key={dim.id}
-                  style={{
-                    borderRadius: 16, overflow: "hidden",
-                    border: `1px solid ${dim.tone}28`,
-                    background: "rgba(255,255,255,0.01)",
-                    display: "flex", flexDirection: "column"
-                  }}
-                >
-                  {/* Dimension header */}
-                  <div style={{
-                    padding: "14px 18px",
-                    background: `${dim.tone}12`,
-                    borderBottom: `1px solid ${dim.tone}22`,
-                    borderLeft: `4px solid ${dim.tone}`
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, fontSize: "1rem", color: dim.tone }}>{dim.label}</div>
-                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {dim.description}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: "1.3rem", fontWeight: 900, color: dim.tone, lineHeight: 1 }}>
-                          {dim.weightedScore}<span style={{ fontSize: "0.78rem", opacity: 0.6, fontWeight: 600 }}>/{dim.weightMax}</span>
-                        </div>
-                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 1 }}>pts</div>
-                      </div>
-                    </div>
-                    {/* Progress bar */}
-                    <div style={{ marginTop: 10, height: 5, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
-                      <div style={{
-                        height: "100%", borderRadius: 99, width: `${pct}%`,
-                        background: `linear-gradient(90deg, ${dim.tone}80, ${dim.tone})`,
-                        transition: "width 0.6s ease"
-                      }} />
-                    </div>
-                    <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4, textAlign: "right" }}>{pct}%</div>
-                  </div>
+        {/* Dimension-wise Breakdown Cards — Accordion */}
+        {(() => {
+          function BreakdownAccordion({ scoredDimensions }) {
+            const [openIds, setOpenIds] = useState(() => new Set());
+            const toggle = (id) => setOpenIds((prev) => {
+              const next = new Set(prev);
+              next.has(id) ? next.delete(id) : next.add(id);
+              return next;
+            });
 
-                  {/* KPI rows */}
-                  <div style={{ flex: 1 }}>
-                    {dim.kpis.map((kpi, kIdx) => {
-                      const band = scoreBand(kpi.score);
-                      return (
-                        <div
-                          key={kpi.id}
-                          style={{
-                            padding: "12px 18px",
-                            borderBottom: kIdx === dim.kpis.length - 1 ? "none" : "1px solid var(--card-border)"
-                          }}
-                        >
-                          {/* KPI header row */}
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                              <span style={{ fontWeight: 700, fontSize: "0.88rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</span>
-                              <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.05)", borderRadius: 20, padding: "1px 7px", whiteSpace: "nowrap", flexShrink: 0 }}>Wt:{kpi.weight}</span>
-                            </div>
-                            <span style={{
-                              padding: "3px 10px", borderRadius: 99, fontWeight: 800, fontSize: "0.8rem",
-                              background: band.color + "20", color: band.color,
-                              border: `1px solid ${band.color}40`, whiteSpace: "nowrap", flexShrink: 0
-                            }}>
-                              {kpi.score}/5
-                            </span>
-                          </div>
-                          {/* Score mini-bar */}
-                          <div style={{ height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)", marginBottom: 8, overflow: "hidden" }}>
-                            <div style={{ height: "100%", borderRadius: 99, width: `${(kpi.score / 5) * 100}%`, background: band.color, opacity: 0.7 }} />
-                          </div>
-                          {/* Reason */}
-                          <div style={{ fontSize: "0.8rem", lineHeight: 1.5, color: "var(--text-muted)", marginBottom: kpi.evidence && kpi.evidence !== "N/A" ? 6 : 0 }}>
-                            {kpi.reason}
-                          </div>
-                          {/* Evidence quote */}
-                          {kpi.evidence && kpi.evidence !== "N/A" && (
-                            <div style={{
-                              fontSize: "0.75rem", fontStyle: "italic", color: "var(--text-muted)",
-                              paddingLeft: 10, borderLeft: `2px solid ${dim.tone}50`, opacity: 0.85
-                            }}>
-                              "{kpi.evidence}"
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+            return (
+              <div style={{ marginTop: 32 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <h2 style={{ fontSize: "1.4rem", fontWeight: 800, margin: 0 }}>Detailed Performance Breakdown</h2>
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "3px 12px", border: "1px solid var(--card-border)" }}>
+                    {scoredDimensions.length} dimensions
+                  </span>
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                    <button onClick={() => setOpenIds(new Set(scoredDimensions.map((d) => d.id)))} style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.06)", border: "1px solid var(--card-border)", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "var(--text-muted)" }}>Expand all</button>
+                    <button onClick={() => setOpenIds(new Set())} style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.06)", border: "1px solid var(--card-border)", borderRadius: 8, padding: "4px 12px", cursor: "pointer", color: "var(--text-muted)" }}>Collapse all</button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {scoredDimensions.map((dim) => {
+                    const pct = Math.round((dim.weightedScore / dim.weightMax) * 100);
+                    const isOpen = openIds.has(dim.id);
+                    return (
+                      <div
+                        key={dim.id}
+                        style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${dim.tone}28`, background: "rgba(255,255,255,0.01)" }}
+                      >
+                        {/* Dimension header — clickable */}
+                        <div
+                          onClick={() => toggle(dim.id)}
+                          style={{ padding: "14px 18px", background: `${dim.tone}12`, borderLeft: `4px solid ${dim.tone}`, cursor: "pointer", userSelect: "none" }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 800, fontSize: "1rem", color: dim.tone }}>{dim.label}</div>
+                              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {dim.description}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+                              {/* Progress bar */}
+                              <div style={{ width: 100, height: 5, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                                <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg, ${dim.tone}80, ${dim.tone})` }} />
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: "1.15rem", fontWeight: 900, color: dim.tone, lineHeight: 1 }}>
+                                  {dim.weightedScore}<span style={{ fontSize: "0.75rem", opacity: 0.6, fontWeight: 600 }}>/{dim.weightMax}</span>
+                                </div>
+                                <div style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>{pct}%</div>
+                              </div>
+                              <span style={{ fontSize: "1rem", color: dim.tone }}>{isOpen ? "▲" : "▼"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* KPI rows — collapsible */}
+                        {isOpen && (
+                          <div>
+                            {dim.kpis.map((kpi, kIdx) => {
+                              const band = scoreBand(kpi.score);
+                              return (
+                                <div
+                                  key={kpi.id}
+                                  style={{ padding: "12px 18px", borderBottom: kIdx === dim.kpis.length - 1 ? "none" : "1px solid var(--card-border)" }}
+                                >
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                                      <span style={{ fontWeight: 700, fontSize: "0.88rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</span>
+                                      <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.05)", borderRadius: 20, padding: "1px 7px", whiteSpace: "nowrap", flexShrink: 0 }}>Wt:{kpi.weight}</span>
+                                    </div>
+                                    <span style={{ padding: "3px 10px", borderRadius: 99, fontWeight: 800, fontSize: "0.8rem", background: band.color + "20", color: band.color, border: `1px solid ${band.color}40`, whiteSpace: "nowrap", flexShrink: 0 }}>
+                                      {kpi.score}/5
+                                    </span>
+                                  </div>
+                                  <div style={{ height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)", marginBottom: 8, overflow: "hidden" }}>
+                                    <div style={{ height: "100%", borderRadius: 99, width: `${(kpi.score / 5) * 100}%`, background: band.color, opacity: 0.7 }} />
+                                  </div>
+                                  <div style={{ fontSize: "0.8rem", lineHeight: 1.5, color: "var(--text-muted)", marginBottom: kpi.evidence && kpi.evidence !== "N/A" ? 6 : 0 }}>
+                                    {kpi.reason}
+                                  </div>
+                                  {kpi.evidence && kpi.evidence !== "N/A" && (
+                                    <div style={{ fontSize: "0.75rem", fontStyle: "italic", color: "var(--text-muted)", paddingLeft: 10, borderLeft: `2px solid ${dim.tone}50`, opacity: 0.85 }}>
+                                      "{kpi.evidence}"
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
+          return <BreakdownAccordion scoredDimensions={scoredDimensions} />;
+        })()}
 
         {/* Risk Flags Table */}
         <div className="card">
@@ -952,17 +924,7 @@ export default function MeetingReportPage() {
             </div>
           </div>
 
-          {r.summary ? (
-            <div className="card" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.06), rgba(17,24,39,0.5))", borderLeft: "4px solid var(--accent)" }}>
-              <h2 style={{ fontSize: "1rem", fontWeight: 800, marginBottom: 12, color: "var(--accent)" }}>Meeting Summary</h2>
-              <p style={{ margin: 0, fontSize: "0.95rem", lineHeight: 1.75, color: "var(--text-main)" }}>
-                {r.summary.replace(/\*\*/g, "").replace(/^\s*[-–]\s*/gm, "").replace(/\s+/g, " ").trim()}
-              </p>
-            </div>
-          ) : null}
-
           {renderKpiShowcase()}
-          {renderScoreBasis()}
           {renderCriticalGaps()}
           {renderImprovementPlan()}
 

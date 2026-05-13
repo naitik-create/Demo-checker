@@ -1,4 +1,5 @@
-// Max per dimension: Discovery=30, Rapport=40, Demo=70, Objections=50, Engagement=55, Close=45 → Total=290
+// Max per dimension: Discovery=75, Rapport=70, Demo=85, Objections=70, Engagement=80, Close=65 → Total=445
+// Matches frontend demoKpiFramework.js exactly (23 KPIs, same weights)
 // Sentiment multiplier: positive=×1.10, neutral=×1.00
 // All questions answered bonus: ×1.05
 const SENTIMENT_MULTIPLIER = { positive: 1.10, neutral: 1.00, negative: 1.00 };
@@ -35,7 +36,7 @@ export function calculateDemoScores({
   const adjusted = weightedTotal - scores.riskDeduction;
   const sentimentMultiplier = SENTIMENT_MULTIPLIER[String(sentiment).toLowerCase()] ?? 1.00;
   const questionsMultiplier = allQuestionsAnswered ? 1.05 : 1.00;
-  const totalScore = Math.max(0, Math.min(100, Math.round((adjusted / 290) * 100 * sentimentMultiplier * questionsMultiplier)));
+  const totalScore = Math.max(0, Math.min(100, Math.round((adjusted / 445) * 100 * sentimentMultiplier * questionsMultiplier)));
 
   return { ...scores, weightedTotal, totalScore };
 }

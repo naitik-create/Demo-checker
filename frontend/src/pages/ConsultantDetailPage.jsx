@@ -17,7 +17,7 @@ import {
 import {
   Link as LinkIcon, Mail, Briefcase, Building, MapPin,
   CalendarDays, TrendingUp, Folder, Activity,
-  CheckCircle, XCircle, LayoutGrid, Trophy
+  CheckCircle, XCircle, LayoutGrid, Trophy, Search, Eye, FileText
 } from "lucide-react";
 
 const SCORE_DIMENSIONS = [
@@ -134,6 +134,9 @@ export default function ConsultantDetailPage() {
   const [calTo, setCalTo] = useState(defaultCalToStr);
   const [calSearch, setCalSearch] = useState("");
   const [calendarLoading, setCalendarLoading] = useState(false);
+  const [analyzedSearch, setAnalyzedSearch] = useState("");
+  const [analyzedPage, setAnalyzedPage] = useState(1);
+  const ANALYZED_PAGE_SIZE = 10;
   const [calendarSyncLoading, setCalendarSyncLoading] = useState(false);
   const [calendarSyncMsg, setCalendarSyncMsg] = useState("");
   const [calDatePreset, setCalDatePreset] = useState("today");
@@ -333,6 +336,14 @@ export default function ConsultantDetailPage() {
     return months.map((m) => ({ month: m.month, avg: nOrNull(m.averageScore) ?? 0 }));
   }, [state.perf]);
 
+  const analyzedDemos = useMemo(() => {
+    const q = analyzedSearch.toLowerCase().trim();
+    return state.meetings
+      .filter(m => m.analysisStatus === "completed")
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+      .filter(m => !q || (m.title || "").toLowerCase().includes(q));
+  }, [state.meetings, analyzedSearch]);
+
   const td = state.teamsData;
   const teamsConnected = td?.connected === true;
 
@@ -500,7 +511,7 @@ export default function ConsultantDetailPage() {
             <KpiCard label="Best / worst" value={`${kpis.best ?? "—"} / ${kpis.worst ?? "—"}`} />
           </div>
 
-          <div className="card" style={{ background: "linear-gradient(135deg, rgba(30,27,75,0.6), rgba(17,24,39,0.8))" }}>
+          <div className="card">
             <div className="card__head" style={{ marginBottom: 20 }}>
               <h2 style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "1.2rem", fontWeight: 800 }}>
                 <Trophy size={20} color="var(--accent)" /> Score Breakdown
@@ -527,12 +538,13 @@ export default function ConsultantDetailPage() {
                 return (
                   <div key={dim.label} style={{
                     borderRadius: 14,
-                    border: `1px solid ${dim.color}30`,
-                    background: `${dim.color}0d`,
+                    border: `1px solid ${dim.color}35`,
+                    background: `${dim.color}0a`,
                     padding: "18px 16px",
                     position: "relative",
                     overflow: "hidden"
                   }}>
+                    {/* top colour strip */}
                     <div style={{
                       position: "absolute", top: 0, left: 0, right: 0, height: 3,
                       background: `linear-gradient(${dim.gradient})`
@@ -544,7 +556,7 @@ export default function ConsultantDetailPage() {
                       <span style={{
                         fontSize: "0.68rem", fontWeight: 700, padding: "2px 8px",
                         borderRadius: 20, background: `${grade.color}20`, color: grade.color,
-                        border: `1px solid ${grade.color}40`, whiteSpace: "nowrap"
+                        border: `1px solid ${grade.color}50`, whiteSpace: "nowrap"
                       }}>
                         {grade.label}
                       </span>
@@ -552,7 +564,8 @@ export default function ConsultantDetailPage() {
                     <div style={{ fontSize: "2.2rem", fontWeight: 900, color: dim.color, lineHeight: 1, marginBottom: 14 }}>
                       {pct}<span style={{ fontSize: "1rem", opacity: 0.6, fontWeight: 600 }}>%</span>
                     </div>
-                    <div style={{ height: 7, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                    {/* progress bar — theme-aware track */}
+                    <div style={{ height: 7, borderRadius: 99, background: "var(--card-border)", overflow: "hidden" }}>
                       <div style={{
                         height: "100%", borderRadius: 99, width: `${pct}%`,
                         background: `linear-gradient(90deg, ${dim.color}88, ${dim.color})`,
@@ -588,6 +601,128 @@ export default function ConsultantDetailPage() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* ── Analyzed Demos Table ── */}
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--card-border)", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <FileText size={18} color="var(--accent)" />
+                <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>Analyzed Demos</h2>
+                <span style={{ fontSize: "0.75rem", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", color: "var(--accent)", borderRadius: 99, padding: "2px 10px", fontWeight: 700 }}>
+                  {analyzedDemos.length}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--card-border)", padding: "4px 10px" }}>
+                <Search size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                <input
+                  type="text"
+                  placeholder="Search by title…"
+                  value={analyzedSearch}
+                  onChange={e => { setAnalyzedSearch(e.target.value); setAnalyzedPage(1); }}
+                  style={{ border: "none", background: "transparent", outline: "none", fontSize: "0.82rem", width: 190, color: "var(--text)" }}
+                />
+              </div>
+            </div>
+
+            {/* Table */}
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(analyzedDemos.length / ANALYZED_PAGE_SIZE));
+              const safePage = Math.min(analyzedPage, totalPages);
+              const pageItems = analyzedDemos.slice((safePage - 1) * ANALYZED_PAGE_SIZE, safePage * ANALYZED_PAGE_SIZE);
+
+              return (
+                <>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
+                    <thead>
+                      <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--card-border)" }}>
+                        <th style={{ padding: "10px 20px", textAlign: "left", fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Title</th>
+                        <th style={{ padding: "10px 16px", textAlign: "left", fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", width: 140 }}>Date</th>
+                        <th style={{ padding: "10px 16px", textAlign: "center", fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", width: 110 }}>Score</th>
+                        <th style={{ padding: "10px 16px", textAlign: "center", fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", width: 110 }}>Status</th>
+                        <th style={{ padding: "10px 16px", textAlign: "center", fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", width: 90 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageItems.map(m => {
+                        const sc = scoreOrNull(m.score);
+                        const scColor = sc == null ? "var(--text-muted)" : sc >= 80 ? "#34d399" : sc >= 60 ? "#60a5fa" : sc >= 40 ? "#fb923c" : "#f87171";
+                        const startD = m.startTime ? new Date(m.startTime) : null;
+                        return (
+                          <tr key={m.id} style={{ borderBottom: "1px solid var(--card-border)" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(99,102,241,0.04)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                          >
+                            <td style={{ padding: "13px 20px", maxWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: "0.9rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {m.title || "—"}
+                              </div>
+                            </td>
+                            <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+                              <div style={{ fontWeight: 500, fontSize: "0.85rem" }}>
+                                {startD ? startD.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                              </div>
+                              {startD && (
+                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                  {startD.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: "13px 16px", textAlign: "center" }}>
+                              {sc != null ? (
+                                <span style={{ fontWeight: 800, fontSize: "1rem", color: scColor, background: scColor + "18", border: "1px solid " + scColor + "40", borderRadius: 99, padding: "3px 12px", display: "inline-block" }}>
+                                  {sc}
+                                </span>
+                              ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                            </td>
+                            <td style={{ padding: "13px 16px", textAlign: "center" }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 99, padding: "3px 10px" }}>
+                                <CheckCircle size={10} /> Analyzed
+                              </span>
+                            </td>
+                            <td style={{ padding: "13px 16px", textAlign: "center" }}>
+                              <Link to={`/reports/${m.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "var(--accent)", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 8, padding: "4px 12px", textDecoration: "none" }}>
+                                <Eye size={12} /> Report
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {analyzedDemos.length === 0 && (
+                    <div style={{ padding: "28px", textAlign: "center", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+                      No analyzed demos yet for this consultant.
+                    </div>
+                  )}
+
+                  {/* Pagination */}
+                  {analyzedDemos.length > ANALYZED_PAGE_SIZE && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderTop: "1px solid var(--card-border)", flexWrap: "wrap", gap: 8 }}>
+                      <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        Showing {(safePage - 1) * ANALYZED_PAGE_SIZE + 1}–{Math.min(safePage * ANALYZED_PAGE_SIZE, analyzedDemos.length)} of {analyzedDemos.length}
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setAnalyzedPage(1)} disabled={safePage === 1} style={{ padding: "3px 10px", fontSize: "0.8rem" }}>«</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setAnalyzedPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={{ padding: "3px 10px", fontSize: "0.8rem" }}>‹ Prev</button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                          .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push("..."); acc.push(p); return acc; }, [])
+                          .map((p, i) => p === "..." ? (
+                            <span key={"e" + i} style={{ fontSize: "0.8rem", color: "var(--text-muted)", padding: "0 4px" }}>…</span>
+                          ) : (
+                            <button key={p} className="btn btn--sm" onClick={() => setAnalyzedPage(p)} style={{ padding: "3px 10px", fontSize: "0.8rem", minWidth: 32, background: p === safePage ? "var(--accent)" : "rgba(255,255,255,0.06)", color: p === safePage ? "#fff" : "var(--text-muted)", borderColor: p === safePage ? "var(--accent)" : "var(--card-border)" }}>{p}</button>
+                          ))}
+                        <button className="btn btn--ghost btn--sm" onClick={() => setAnalyzedPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={{ padding: "3px 10px", fontSize: "0.8rem" }}>Next ›</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setAnalyzedPage(totalPages)} disabled={safePage === totalPages} style={{ padding: "3px 10px", fontSize: "0.8rem" }}>»</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </>
       ) : null}
