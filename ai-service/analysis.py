@@ -3,6 +3,7 @@ Demo Meeting Transcript Analysis Service
 Pure-Python fallback (no PyTorch / NumPy / Transformers required).
 Uses OpenAI GPT when OPENAI_API_KEY is set, otherwise uses fast keyword-based analysis.
 """
+__version__ = "3.1.2"
 import json
 import os
 import re
@@ -519,50 +520,174 @@ def _extract_pros_cons_tips(text: str, questions: list, sentiment: str) -> tuple
     if signals.get("mentions_pain"):
         pros.append("Discovery: Successfully identified client pain points and business challenges.")
     else:
-        cons.append("Discovery: Limited identification of specific business pain; depth needs improvement.")
-        tips.append("Discovery: Use open-ended questions like 'What is the business impact of this issue?' to uncover deeper pain.")
+        cons.append(_make_con("Discovery", "Pain identification",
+            "Pain was mentioned generically but not quantified or confirmed by the prospect before the demo began.",
+            "Before demoing, ask: 'What does a bad week look like for your team? How many hours are lost to manual monitoring?' Confirm pain before showing any product."))
+        tips.append(_make_tip("Pain identification", [
+            "1. Ask 3 targeted pain questions before showing any product — e.g. 'What business impact does this monitoring gap have on your SLA or uptime targets?'",
+            "2. Quantify the pain — e.g. 'How many hours per week does your team spend triaging alerts manually?'",
+            "3. Confirm pain before demoing — e.g. 'So if I understand correctly, your main pain is X — is that right? Let me show you how Motadata solves exactly that.'"
+        ]))
+        cons.append(_make_con("Discovery", "Current infra and state mapping",
+            "No mapping of the prospect's existing tools, infrastructure type, or team size before the demo.",
+            "Add an infra snapshot step: 'Can you walk me through what monitoring and ITSM tools you're currently running?' Capture in monday.com before accepting any demo."))
+        tips.append(_make_tip("Current infra and state mapping", [
+            "1. Ask before every demo: 'Can you walk me through what monitoring and ITSM tools you're currently running — on-prem or cloud?'",
+            "2. Capture current tools, infra type, and team size in monday.com before accepting the demo invite.",
+            "3. Use the infra snapshot to decide which modules to show — e.g. show HIM if on-prem infra gaps are confirmed."
+        ]))
 
     # 2. RAPPORT
     if sentiment == "positive":
         pros.append("Rapport: Positive sentiment and strong engagement signals detected.")
     else:
-        tips.append("Rapport: Focus on agenda setting and active listening to build earlier trust.")
+        cons.append(_make_con("Rapport", "Agenda setting",
+            "No agenda was set at the start. Topics drifted unpredictably without a declared structure.",
+            "Open every call with a visible agenda: 'We have 45 minutes — 15 min discovery, 20 min demo, 10 min Q&A. Does that work for you?'"))
+        tips.append(_make_tip("Agenda setting", [
+            "1. Open every call by stating the agenda — e.g. 'Today: (1) Discovery 15 min, (2) Demo 20 min, (3) Q&A 10 min. Agreed?'",
+            "2. Share the agenda in the calendar invite so the prospect arrives prepared.",
+            "3. Check in at the halfway point: 'We've covered discovery — does the agenda still work for you?'"
+        ]))
+        cons.append(_make_con("Rapport", "Active listening signals",
+            "Responses were mostly echo/repeat-back without genuine acknowledgment or follow-up probing.",
+            "Replace mirroring with acknowledgment + building: 'That makes sense — and that connects to what you mentioned about delayed alerts...'"))
+        tips.append(_make_tip("Active listening signals", [
+            "1. Paraphrase before moving on — e.g. 'So if I understand correctly, your main challenge is alert noise causing missed incidents — is that right?'",
+            "2. Ask a follow-up based on what was said — e.g. 'You mentioned SLA breaches — how often does that happen in a typical month?'",
+            "3. Adjust demo direction in response to feedback — 'Since you mentioned X, let me show you that module first.'"
+        ]))
 
     # 3. DEMO
     if signals.get("has_integration") or signals.get("has_security"):
         pros.append("Demo: Technical relevance was high, addressing integration and compliance needs.")
     else:
-        cons.append("Demo: Demo flow may be too generic; tie features more closely to client context.")
+        cons.append(_make_con("Demo", "Relevance of demo flow",
+            "Demo flow was generic or unstructured; features shown did not map to the stated customer pains.",
+            "Only show modules that map to discovered pain — e.g. 'Since you mentioned SLA breaches, let me show exactly how Motadata auto-escalates before a breach happens.'"))
+        tips.append(_make_tip("Relevance of demo flow", [
+            "1. Map every demo module to a discovered pain — e.g. show HIM if infra monitoring pain was raised, Service Desk if SLA issues mentioned.",
+            "2. Reference pain back during demo: 'You mentioned earlier that alerts took 4 hours to surface — here's how that drops to 20 minutes.'",
+            "3. Avoid feature tours — every module shown must answer 'so what?' with a business outcome for this specific customer."
+        ]))
+        cons.append(_make_con("Demo", "Story-based narrative",
+            "No clear story arc linking customer pain to product capability to business outcome.",
+            "Use a 3-act structure: 'You told us X pain → here's how Motadata solves it → here's the outcome you'd see in 90 days.'"))
+        tips.append(_make_tip("Story-based narrative", [
+            "1. Use a 3-act arc — e.g. 'Your team misses SLA breaches because alerts arrive 4 hours late. Here's how Motadata changes that. Here's what your NOC looks like 90 days later.'",
+            "2. Reference the customer's specific pain in every act — not 'customers see 40% reduction' but 'your team would see...'",
+            "3. End with an outcome statement: 'The result is your team spends 20 minutes on triage instead of 4 hours — that's 3 FTE hours saved per day.'"
+        ]))
+        tips.append(_make_tip("Value articulation", [
+            "1. Quantify the outcome — e.g. 'Customers using this see a 40% reduction in MTTR and save roughly 3 FTE hours per day on manual triage.'",
+            "2. Create a Value Phrase Bank — 10 outcome-focused sentences per vertical. 'Your team spends less time fire-fighting' not 'we have unified dashboards.'",
+            "3. Connect every feature to a business outcome: 'This auto-correlation means your L1 team stops spending 2 hours per incident manually correlating logs.'"
+        ]))
 
     # 4. OBJECTIONS
     if signals.get("has_competitor"):
-        cons.append("Objections: Competitor mentions require stronger differentiation and ROI proof.")
-        tips.append("Objections: Prepare a 'Why Motadata' differentiator pack for the next follow-up.")
+        cons.append(_make_con("Objections", "Competitor handling",
+            "Competitor mentions present but no structured differentiation or Motadata-specific positioning used.",
+            "Acknowledge the competitor then pivot — e.g. 'Datadog is strong on cloud APM. Where Motadata wins is unified on-prem + cloud with device-based pricing.'"))
+        tips.append(_make_tip("Competitor handling", [
+            "1. Name the competitor, acknowledge it respectfully, then differentiate — e.g. 'Datadog is strong on cloud APM. Where Motadata wins is on-prem + cloud unified, device-based pricing.'",
+            "2. Turn the competitor mention into a discovery question: 'What gaps have you seen with Datadog in your on-prem environment?'",
+            "3. Prepare a competitive battlecard for top 3 competitors (Datadog, SolarWinds, ServiceNow) with scripted one-liner responses."
+        ]))
+        tips.append(_make_tip("Price / ROI discussion", [
+            "1. Proactively address TCO before the prospect raises it — e.g. 'Our device-based pricing means you pay once per device — no per-module, per-host, or per-user surprises.'",
+            "2. Build a simple ROI narrative: 'Number of engineers x hours/week on manual monitoring x average hourly cost = annual saving from Motadata automation.'",
+            "3. Introduce commercial conversation after the first wow moment when the prospect asks about integration."
+        ]))
 
     # 5. ENGAGEMENT
     if q_count >= 3:
         pros.append("Engagement: High prospect participation with multiple clarifying questions.")
     else:
-        cons.append("Engagement: Low client interaction; check for disengagement moments.")
-        tips.append("Engagement: Pause every 5 minutes to ask 'How does this workflow align with your current process?'")
+        cons.append(_make_con("Engagement", "Questions asked by prospect",
+            "Low client interaction throughout. Few substantive questions were asked by the prospect.",
+            "Create deliberate pause points — 'Before I move on, does this workflow match how your team handles incidents today? What questions do you have?'"))
+        tips.append(_make_tip("Questions asked by prospect", [
+            "1. Create deliberate pause points — e.g. 'Before I move on, does this workflow match how your team handles incidents today? What questions do you have?'",
+            "2. After every topic block, use a 2-question pause: 'What's one thing still unclear?' Wait 5 seconds — the discomfort of silence prompts more responses.",
+            "3. Use directed questions with names: 'Siraj, does this match what you've seen in your South India accounts?'"
+        ]))
+        cons.append(_make_con("Engagement", "Use case confirmation",
+            "Use cases mentioned but never explicitly confirmed by the prospect with a specific statement.",
+            "Ask explicitly after every module: 'Does this solve the alert fatigue problem you described earlier, or is there a gap I should address?'"))
+        tips.append(_make_tip("Use case confirmation", [
+            "1. Ask explicit confirmation after every module — e.g. 'Does this solve the alert fatigue problem you described earlier?'",
+            "2. Listen for forward-looking language ('when we implement this...') as a signal of confirmed alignment.",
+            "3. After each use case shown, map it back: 'You mentioned X earlier — this is exactly how Motadata handles that scenario.'"
+        ]))
 
     # 6. CLOSE
     if signals.get("has_next_steps"):
         pros.append("Close: Momentum established with clear next steps or follow-up actions.")
     else:
-        cons.append("Close: No concrete next steps were confirmed; deal momentum is at risk.")
-        tips.append("Close: Always end with a specific date and owner for the next 'Mutual Action Plan' step.")
+        cons.append(_make_con("Close", "Clear next step set",
+            "No concrete next step confirmed with a named owner and specific date. Deal momentum is at risk.",
+            "End every call with: 'Let's schedule the POC kickoff for Thursday the 15th — I'll send the agenda and you confirm the technical team. Agreed?'"))
+        tips.append(_make_tip("Clear next step set", [
+            "1. End every call with a named owner and specific date — e.g. 'Let's schedule the POC kickoff for Thursday the 15th. I'll send the agenda — you confirm the technical team?'",
+            "2. Make each next step SMART — instead of 'we'll follow up,' say 'I'll send the proposal by Friday and you'll loop in your IT director by Monday.'",
+            "3. Send a written summary within 30 minutes after every session: topics covered, 3 decisions made, named actions with deadlines."
+        ]))
+        cons.append(_make_con("Close", "Mutual action plan",
+            "All actions assigned top-down — no co-created commitments secured from the prospect.",
+            "End with a close ritual: 'My action is to send the proposal by Friday, and your action is to loop in your IT director — agreed?' Wait for verbal confirmation."))
+        tips.append(_make_tip("Mutual action plan", [
+            "1. Introduce a session close ritual — final 5 minutes: go around and ask each person to state their one commitment.",
+            "2. Use verbal confirmation: 'Siraj, you'll document the fix in the KB by Friday. Agreed?' Wait for the yes.",
+            "3. Track commitments in monday.com with person's name, action, and due date. Review in the following week's scrum."
+        ]))
 
     # 7. RISKS
     if signals.get("has_competitor") and not signals.get("has_pricing"):
-        cons.append("Risks: Lack of pricing alignment alongside competitor mentions is a major red flag.")
+        cons.append(_make_con("Risks", "Resolution quality",
+            "Competitor mentions present without pricing alignment — prospect may be cost-comparing without the data to decide.",
+            "Address TCO proactively: 'Our device-based pricing means you pay once per device — no per-module, per-host, or per-user surprises. Let me show you a comparison.'"))
+        tips.append(_make_tip("Resolution quality", [
+            "1. Use the AREB method — Acknowledge, Reframe, Evidence, Bridge — e.g. 'I hear the concern about cost. Our customers consolidate 3 tools into one, reducing total spend. Can I show you a TCO comparison?'",
+            "2. Prepare a Motadata vs. competitor pricing comparison slide for the top 3 competitors.",
+            "3. Address TCO proactively before the pricing objection is raised: 'Before I move to features, let me show you how this compares on total cost.'"
+        ]))
 
-    # Fallbacks for minimum sizes
-    while len(pros) < 3: pros.append("Performance: Maintained professional standards throughout the session.")
-    while len(cons) < 3: cons.append("Performance: Some dimensions lacked depth and could benefit from more structured evidence.")
-    while len(tips) < 3: tips.append("General: Review the transcript to identify specific missed cues for discovery.")
+    while len(pros) < 3:
+        pros.append("Performance: Maintained professional standards throughout the session.")
+    while len(cons) < 2:
+        cons.append(_make_con("Performance", "General",
+            "Some dimensions lacked depth and could benefit from more structured evidence.",
+            "Review the transcript to identify specific missed cues and address them in the next session."))
 
-    return pros[:8], cons[:8], tips[:10]
+    return pros[:8], cons[:14], tips[:15]
+
+
+def _build_improvement_item(i) -> dict:
+    """Return a structured tip object { kpi, actions, evidence }."""
+    if isinstance(i, str):
+        return {"kpi": "", "actions": [i], "evidence": ""}
+    kpi = str(i.get("kpi", "") or "").strip()
+    actions = i.get("actions", [])
+    if not isinstance(actions, list):
+        actions = []
+    # Fallback: old single improvement/example_sentence format
+    if not actions:
+        improvement = str(i.get("improvement", "") or "").strip()
+        example = str(i.get("example_sentence", "") or "").strip()
+        if improvement:
+            text = f"{improvement} — e.g. \"{example}\"" if example else improvement
+            actions = [f"1. {text}"]
+    evidence = str(i.get("evidence", "") or "").strip()
+    return {"kpi": kpi, "actions": actions, "evidence": evidence}
+
+
+def _make_con(dimension, kpi, explanation, suggestion, quote="") -> dict:
+    return {"dimension": dimension, "kpi": kpi, "explanation": explanation, "quote": quote, "suggestion": suggestion}
+
+
+def _make_tip(kpi, actions, evidence="") -> dict:
+    return {"kpi": kpi, "actions": actions, "evidence": evidence}
 
 
 # ─── OpenAI GPT analysis (used when OPENAI_API_KEY is set) ──────────────────
@@ -592,15 +717,21 @@ def _analyze_with_openai(transcript_text: str) -> dict:
         "INSTRUCTIONS:\n"
         "- kpiEvidence: Score each of the 23 KPIs (1-5) and provide a specific reasoning and evidence quote from the transcript.\n"
         "- riskFlags: Identify if any of the 4 risk indicators are present.\n"
-        "- observations: List 3-5 'whatWentWell' (Pros) and 3-5 'whatWentWrong' (Cons), explicitly referencing the dimensions (e.g., 'Discovery: ...' or 'Close: ...').\n"
-        "- improvements: Provide 3-5 actionable tips. Each tip must be specific and include an example sentence for the consultant to use.\n"
-        "- summary: A 'Complete Analysis' that synthesizes performance across the 7 dimensions and the overall deal momentum.\n\n"
+        "- observations.whatWentWell: 3-5 strengths. Format each as: 'Dimension: Title — \\'exact short quote from transcript\\''\n"
+        "- observations.whatWentWrong: 3-5 weaknesses. Each must be a JSON object: { dimension, kpi, explanation, quote (exact transcript quote), suggestion (specific actionable fix with example sentence) }\n"
+        "- improvements: For EVERY KPI that scored 1, 2, or 3, provide one improvement object with: kpi (exact name), actions (array of 2-3 numbered specific actions with example sentences), evidence (exact transcript quote showing the gap).\n"
+        "- kpiGaps: For EVERY KPI that scored 1, 2, or 3, provide a 'whatWasMissing' bullet list (3-4 items) describing what was specifically absent from this call for that KPI.\n"
+        "- summary: A 'Complete Analysis' synthesizing performance across 7 dimensions and deal momentum.\n\n"
         "Return ONLY valid JSON with this exact structure:\n"
         "{\n"
         "  \"metadata\": { \"clientName\": \"string\", \"productName\": \"string\" },\n"
         "  \"summary\": \"...\",\n"
-        "  \"observations\": { \"whatWentWell\": [\"...\"], \"whatWentWrong\": [\"...\"] },\n"
-        "  \"improvements\": [{ \"improvement\": \"...\", \"example_sentence\": \"...\" }],\n"
+        "  \"observations\": {\n"
+        "    \"whatWentWell\": [\"Dimension: Title — 'transcript quote'\"],\n"
+        "    \"whatWentWrong\": [{ \"dimension\": \"string\", \"kpi\": \"string\", \"explanation\": \"string\", \"quote\": \"string\", \"suggestion\": \"string\" }]\n"
+        "  },\n"
+        "  \"improvements\": [{ \"kpi\": \"exact KPI name\", \"actions\": [\"1. action — e.g. 'sentence'\", \"2. action — e.g. 'sentence'\", \"3. action — e.g. 'sentence'\"], \"evidence\": \"exact transcript quote\" }],\n"
+        "  \"kpiGaps\": { \"KPI Name\": { \"whatWasMissing\": [\"bullet 1\", \"bullet 2\", \"bullet 3\"] } },\n"
         "  \"kpiEvidence\": {\n"
         "     \"KPI Name (Exact)\": { \"score_1_to_5\": 5, \"reasoning\": \"...\", \"evidence_quote\": \"...\" }\n"
         "  },\n"
@@ -608,7 +739,7 @@ def _analyze_with_openai(transcript_text: str) -> dict:
         "     \"Risk Name (Exact)\": { \"present_boolean\": true, \"evidence_quote\": \"...\" }\n"
         "  }\n"
         "}\n\n"
-        "CRITICAL: The keys in kpiEvidence and riskFlags MUST match the labels provided above EXACTLY.\n"
+        "CRITICAL: Keys in kpiEvidence, riskFlags, kpiGaps, and improvements MUST use exact KPI/risk label names.\n"
     )
 
     resp = client.chat.completions.create(
@@ -638,14 +769,15 @@ def _analyze_with_openai(transcript_text: str) -> dict:
         "summary": data.get("summary", ""),
         "pros": data.get("observations", {}).get("whatWentWell", []),
         "cons": data.get("observations", {}).get("whatWentWrong", []),
-        "tips": [f"{i['improvement']} - e.g. \"{i['example_sentence']}\"" for i in data.get("improvements", [])],
-        "sentiment": "neutral", # will be derived from KPIs
+        "tips": [_build_improvement_item(i) for i in data.get("improvements", [])],
+        "sentiment": "neutral",
         "questionsCount": 0,
         "questionsDetected": [],
         "qaPairs": [],
         "demoQualityEvaluation": data.get("summary", ""),
         "structuredDetails": data.get("kpiEvidence", {}),
-        "riskFlags": data.get("riskFlags", {})
+        "riskFlags": data.get("riskFlags", {}),
+        "kpiGaps": data.get("kpiGaps", {})
     }
 
 
@@ -803,8 +935,10 @@ def _analyze_with_claude(transcript_text: str) -> dict:
         "INSTRUCTIONS:\n"
         "- kpiEvidence: Score each of the 23 KPIs (1-5) with Motadata-specific reasoning and an exact quote from the transcript.\n"
         "- riskFlags: Set present_boolean true/false for each of the 4 risk indicators. Consider Motadata-specific risks (feature gaps vs. ServiceNow/Datadog, budget concerns given enterprise pricing, disengagement if prospect showed SaaS-only preference).\n"
-        "- observations: 3-5 pros (whatWentWell) and 3-5 cons (whatWentWrong), prefixed with dimension name. Reference Motadata methodology specifically.\n"
-        "- improvements: 3-5 actionable tips with an example sentence the consultant can use verbatim in the next meeting. Tips should be Motadata-specific (reference product names, use cases, differentiators).\n"
+        "- observations.whatWentWell: 3-5 strengths. Format each as: 'Dimension: Title — \\'exact short quote from transcript\\''\n"
+        "- observations.whatWentWrong: 3-5 weaknesses as objects: { dimension, kpi, explanation, quote (exact transcript quote showing the gap), suggestion (Motadata-specific fix with verbatim example sentence) }\n"
+        "- improvements: For EVERY KPI that scored 1, 2, or 3, provide one object: kpi (exact label), actions (array of 2-3 numbered Motadata-specific actions with example sentences), evidence (exact transcript quote showing the gap).\n"
+        "- kpiGaps: For EVERY KPI that scored 1, 2, or 3, list 3-4 specific bullets describing what was absent from THIS call for that KPI. Reference Motadata methodology.\n"
         "- summary: A complete analysis synthesizing performance across all 7 dimensions, deal momentum, and likelihood of progressing to POC or proposal.\n"
         "- metadata: Extract clientName and productName (ObserveOps / ServiceOps / Both) from the transcript.\n\n"
 
@@ -812,8 +946,12 @@ def _analyze_with_claude(transcript_text: str) -> dict:
         "{\n"
         "  \"metadata\": { \"clientName\": \"string\", \"productName\": \"string\" },\n"
         "  \"summary\": \"string\",\n"
-        "  \"observations\": { \"whatWentWell\": [\"string\"], \"whatWentWrong\": [\"string\"] },\n"
-        "  \"improvements\": [{ \"improvement\": \"string\", \"example_sentence\": \"string\" }],\n"
+        "  \"observations\": {\n"
+        "    \"whatWentWell\": [\"Dimension: Title — 'transcript quote'\"],\n"
+        "    \"whatWentWrong\": [{ \"dimension\": \"string\", \"kpi\": \"string\", \"explanation\": \"string\", \"quote\": \"string\", \"suggestion\": \"string\" }]\n"
+        "  },\n"
+        "  \"improvements\": [{ \"kpi\": \"string\", \"actions\": [\"1. action — e.g. 'sentence'\", \"2. action\", \"3. action\"], \"evidence\": \"exact transcript quote\" }],\n"
+        "  \"kpiGaps\": { \"KPI Name\": { \"whatWasMissing\": [\"bullet 1\", \"bullet 2\", \"bullet 3\"] } },\n"
         "  \"kpiEvidence\": {\n"
         "    \"Pain identification\": { \"score_1_to_5\": 1, \"reasoning\": \"string\", \"evidence_quote\": \"string\" },\n"
         "    \"Current infra and state mapping\": { \"score_1_to_5\": 1, \"reasoning\": \"string\", \"evidence_quote\": \"string\" },\n"
@@ -870,15 +1008,7 @@ def _analyze_with_claude(transcript_text: str) -> dict:
         print(f"[analysis] Claude API failed ({e}), falling back to local")
         raise
 
-    improvements = data.get("improvements", [])
-    tips = []
-    for i in improvements:
-        if isinstance(i, dict):
-            tip = i.get("improvement", "")
-            ex = i.get("example_sentence", "")
-            tips.append(f"{tip} - e.g. \"{ex}\"" if ex else tip)
-        elif isinstance(i, str):
-            tips.append(i)
+    tips = [_build_improvement_item(i) for i in data.get("improvements", [])]
 
     return {
         "clientName": data.get("metadata", {}).get("clientName", ""),
@@ -893,7 +1023,8 @@ def _analyze_with_claude(transcript_text: str) -> dict:
         "qaPairs": [],
         "demoQualityEvaluation": data.get("summary", ""),
         "structuredDetails": data.get("kpiEvidence", {}),
-        "riskFlags": data.get("riskFlags", {})
+        "riskFlags": data.get("riskFlags", {}),
+        "kpiGaps": data.get("kpiGaps", {})
     }
 
 
@@ -1730,6 +1861,7 @@ def _analyze_with_local(transcript_text: str) -> dict:
         "demoQualityEvaluation": " ".join(quality_parts),
         "structuredDetails": structured_details,
         "riskFlags": risk_flags,
+        "kpiGaps": {},
         "detectedLanguage": detected_lang,
         "detectedLanguageName": _lang_name(detected_lang),
         "translatedToEnglish": not is_english,

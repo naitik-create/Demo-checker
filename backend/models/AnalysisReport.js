@@ -22,7 +22,8 @@ export const AnalysisReport = sequelize.define(
     qaPairs: { type: DataTypes.JSONB, defaultValue: [] },
     demoQualityEvaluation: { type: DataTypes.TEXT, defaultValue: "" },
     structuredDetails: { type: DataTypes.JSONB, defaultValue: {} },
-    riskFlags: { type: DataTypes.JSONB, defaultValue: {} }
+    riskFlags: { type: DataTypes.JSONB, defaultValue: {} },
+    kpiGaps: { type: DataTypes.JSONB, defaultValue: {} }
   },
   {
     tableName: "analysis_reports",

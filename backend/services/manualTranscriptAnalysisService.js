@@ -1,8 +1,6 @@
 import { Transcript, AnalysisReport, DemoScore } from "../models/index.js";
 import { calculateDemoScores } from "./demoScoringEngine.js";
 
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-
 async function analyzeWithAiService(transcriptText) {
   const baseUrl = process.env.AI_SERVICE_URL || "http://localhost:7000";
   const url = `${baseUrl.replace(/\/$/, "")}/analyze`;
@@ -64,17 +62,11 @@ function scoreFromAnalysis(analysis) {
   const riskCount = Object.values(risks).filter(r => r.present_boolean === true).length;
   const riskDeduction = riskCount * 5;
   const sentiment = analysis?.sentiment || "neutral";
+  const questionsCount = Number(analysis?.questionsCount || 0);
+  const qaPairsCount = Array.isArray(analysis?.qaPairs) ? analysis.qaPairs.length : 0;
+  const allQuestionsAnswered = questionsCount > 0 && qaPairsCount >= questionsCount;
 
-  return {
-    discoveryScore,
-    rapportScore,
-    demoScore,
-    objectionsScore,
-    engagementScore,
-    closeScore,
-    riskDeduction,
-    sentiment
-  };
+  return calculateDemoScores({ discoveryScore, rapportScore, demoScore, objectionsScore, engagementScore, closeScore, riskDeduction, sentiment, allQuestionsAnswered });
 }
 
 export async function runManualTranscriptAnalysis({ meetingId, transcriptText, productName = "" }) {
@@ -97,7 +89,8 @@ export async function runManualTranscriptAnalysis({ meetingId, transcriptText, p
     qaPairs: Array.isArray(analysis.qaPairs) ? analysis.qaPairs : [],
     demoQualityEvaluation: analysis.demoQualityEvaluation || "",
     structuredDetails: analysis.structuredDetails || {},
-    riskFlags: analysis.riskFlags || {}
+    riskFlags: analysis.riskFlags || {},
+    kpiGaps: analysis.kpiGaps || {}
   }, { returning: true });
 
   const [scoreDoc] = await DemoScore.upsert({ meetingId, ...scores }, { returning: true });

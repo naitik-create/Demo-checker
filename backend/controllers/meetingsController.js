@@ -131,6 +131,7 @@ export async function meetingReport(req, res, next) {
       demoQualityEvaluation: analysisReport?.demoQualityEvaluation || "",
       structuredDetails: analysisReport?.structuredDetails || {},
       riskFlags: analysisReport?.riskFlags || {},
+      kpiGaps: analysisReport?.kpiGaps || {},
       scores: demoScore
         ? {
             discoveryScore: demoScore.discoveryScore,

@@ -454,6 +454,17 @@ export default function MeetingReportPage() {
                           &ldquo;{kpi.evidence}&rdquo;
                         </div>
                       )}
+                      {/* What Was Missing bullets from AI kpiGaps */}
+                      {r?.kpiGaps?.[kpi.label]?.whatWasMissing?.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: "0.7rem", fontWeight: 700, color: group.color, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>What Was Missing</div>
+                          <ul style={{ margin: 0, paddingLeft: 14, display: "flex", flexDirection: "column", gap: 3 }}>
+                            {r.kpiGaps[kpi.label].whatWasMissing.map((item, i) => (
+                              <li key={i} style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.5 }}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -469,9 +480,26 @@ export default function MeetingReportPage() {
     if (!kpiAssessment) return null;
     const scoredDims = kpiAssessment.dimensions.filter((d) => !d.risk);
 
-    // Parse Claude's cons and tips by dimension
-    const parsedCons = parseDimPrefixed(r?.cons);
-    const parsedTips = parseDimPrefixed(r?.tips);
+    // Parse Claude's cons and tips by dimension (object tips handled separately via kpiTipMap)
+    const parsedCons = parseDimPrefixed((r?.cons || []).filter((c) => typeof c === "string"));
+    const parsedTips = parseDimPrefixed((r?.tips || []).filter((t) => typeof t === "string"));
+
+    // Build KPI-to-tip map: new object format { kpi, actions, evidence } or old "KPI Label: ..." strings
+    const allKpiLabels = scoredDims.flatMap((d) => d.kpis.map((k) => k.label));
+    const kpiTipMap = {};
+    (r?.tips || []).forEach((tip) => {
+      if (tip && typeof tip === "object" && tip.kpi) {
+        kpiTipMap[tip.kpi.toLowerCase()] = { actions: tip.actions || [], evidence: tip.evidence || "" };
+      } else if (typeof tip === "string") {
+        const s = tip.trim();
+        for (const label of allKpiLabels) {
+          if (s.toLowerCase().startsWith(label.toLowerCase() + ":")) {
+            kpiTipMap[label.toLowerCase()] = { actions: [s.slice(label.length + 1).trim()], evidence: "" };
+            break;
+          }
+        }
+      }
+    });
 
     // Sort dimensions by performance (worst first)
     const dimsSorted = [...scoredDims].sort((a, b) => a.percentage - b.percentage);
@@ -479,8 +507,10 @@ export default function MeetingReportPage() {
     // Only show dimensions that have at least one KPI < 5 or a cons/tip entry
     const actionableDims = dimsSorted.filter((dim) => {
       const hasWeakKpi = dim.kpis.some((k) => k.score < 5);
-      const hasCons = parsedCons.some((c) => c.dim.toLowerCase() === dim.label.toLowerCase());
-      const hasTips = parsedTips.some((t) => t.dim.toLowerCase() === dim.label.toLowerCase());
+      const hasCons = parsedCons.some((c) => c.dim.toLowerCase() === dim.label.toLowerCase())
+        || (r?.cons || []).some((c) => c && typeof c === "object" && c.dimension?.toLowerCase() === dim.label.toLowerCase());
+      const hasTips = parsedTips.some((t) => t.dim.toLowerCase() === dim.label.toLowerCase())
+        || (r?.tips || []).some((t) => t && typeof t === "object" && dim.kpis.some((k) => k.label.toLowerCase() === (t.kpi || "").toLowerCase()));
       return hasWeakKpi || hasCons || hasTips;
     });
 
@@ -502,6 +532,7 @@ export default function MeetingReportPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 12 }}>
           {actionableDims.map((dim) => {
             const dimCons = parsedCons.filter((c) => c.dim.toLowerCase() === dim.label.toLowerCase());
+            const dimObjCons = (r?.cons || []).filter((c) => c && typeof c === "object" && c.dimension?.toLowerCase() === dim.label.toLowerCase());
             const dimTips = parsedTips.filter((t) => t.dim.toLowerCase() === dim.label.toLowerCase());
             const weakKpis = dim.kpis.filter((k) => k.score <= 3).sort((a, b) => a.score - b.score);
             const pct = dim.percentage;
@@ -526,22 +557,47 @@ export default function MeetingReportPage() {
 
                 <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
                   {/* What went wrong (cons for this dimension) */}
-                  {dimCons.length > 0 && (
+                  {(dimObjCons.length > 0 || dimCons.length > 0) && (
                     <div>
-                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#f87171", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>What Went Wrong</div>
-                      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
-                        {dimCons.map((c, i) => (
-                          <li key={i} style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.55 }}>{c.text}</li>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#f87171", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>What Went Wrong</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {dimObjCons.map((c, i) => (
+                          <div key={i} style={{ borderRadius: 6, border: "1px solid rgba(248,113,113,0.15)", overflow: "hidden" }}>
+                            <div style={{ padding: "6px 10px", background: "rgba(248,113,113,0.05)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ color: "#f87171", fontWeight: 800, fontSize: "0.85rem", flexShrink: 0 }}>&#10007;</span>
+                              {c.kpi && <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-main)" }}>{c.kpi}</span>}
+                            </div>
+                            <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 5 }}>
+                              {c.explanation && <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.5 }}>{c.explanation}</div>}
+                              {c.quote && (
+                                <div style={{ fontSize: "0.75rem", fontStyle: "italic", color: "var(--text-muted)", borderLeft: "2px solid rgba(248,113,113,0.3)", paddingLeft: 8, lineHeight: 1.5, opacity: 0.85 }}>
+                                  &ldquo;{c.quote}&rdquo;
+                                </div>
+                              )}
+                              {c.suggestion && (
+                                <div style={{ fontSize: "0.78rem", color: "#38bdf8", background: "rgba(56,189,248,0.05)", borderRadius: 5, padding: "5px 8px", border: "1px solid rgba(56,189,248,0.12)", lineHeight: 1.5 }}>
+                                  <span style={{ fontWeight: 700 }}>Suggestion: </span>{c.suggestion}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         ))}
-                      </ul>
+                        {dimCons.length > 0 && (
+                          <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+                            {dimCons.map((c, i) => (
+                              <li key={i} style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.55 }}>{c.text}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  {/* KPI-level gaps */}
+                  {/* KPI-level gaps with inline improvement tips */}
                   {weakKpis.length > 0 && (
                     <div>
                       <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#fbbf24", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>KPI Gaps in This Dimension</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {weakKpis.map((kpi) => (
                           <div key={kpi.id} style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid var(--card-border)" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -551,7 +607,22 @@ export default function MeetingReportPage() {
                               </span>
                             </div>
                             {kpi.reason && kpi.reason !== "Refer to transcript." && (
-                              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.5 }}>{kpi.reason}</div>
+                              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.5, marginBottom: kpiTipMap[kpi.label.toLowerCase()]?.actions?.length > 0 ? 6 : 0 }}>{kpi.reason}</div>
+                            )}
+                            {kpiTipMap[kpi.label.toLowerCase()]?.actions?.length > 0 && (
+                              <div style={{ fontSize: "0.8rem", color: "#38bdf8", lineHeight: 1.55, background: "rgba(56,189,248,0.06)", borderRadius: 6, padding: "8px 10px", border: "1px solid rgba(56,189,248,0.15)" }}>
+                                <div style={{ fontWeight: 700, marginBottom: 6 }}>How to improve:</div>
+                                <ol style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+                                  {kpiTipMap[kpi.label.toLowerCase()].actions.map((action, ai) => (
+                                    <li key={ai} style={{ fontSize: "0.79rem", lineHeight: 1.55 }}>{action.replace(/^\d+\.\s*/, "")}</li>
+                                  ))}
+                                </ol>
+                                {kpiTipMap[kpi.label.toLowerCase()].evidence && (
+                                  <div style={{ marginTop: 6, fontSize: "0.75rem", fontStyle: "italic", color: "#38bdf8", opacity: 0.75, borderLeft: "2px solid rgba(56,189,248,0.3)", paddingLeft: 8, lineHeight: 1.5 }}>
+                                    &ldquo;{kpiTipMap[kpi.label.toLowerCase()].evidence}&rdquo;
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}
@@ -559,7 +630,7 @@ export default function MeetingReportPage() {
                     </div>
                   )}
 
-                  {/* How to improve (tips for this dimension) */}
+                  {/* How to improve — dimension-level tips not already shown in KPI cards */}
                   {dimTips.length > 0 && (
                     <div style={{ background: "rgba(56,189,248,0.06)", borderRadius: 8, padding: "12px 14px", border: "1px solid rgba(56,189,248,0.15)" }}>
                       <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#38bdf8", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>How to Improve</div>
@@ -570,26 +641,14 @@ export default function MeetingReportPage() {
                       </ul>
                     </div>
                   )}
-
-                  {/* General tips if no dimension-specific ones */}
-                  {dimTips.length === 0 && weakKpis.length > 0 && (
-                    <div style={{ background: "rgba(56,189,248,0.04)", borderRadius: 8, padding: "10px 14px", border: "1px solid rgba(56,189,248,0.12)" }}>
-                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#38bdf8", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Actions</div>
-                      {weakKpis.slice(0, 2).map((kpi) => (
-                        <div key={kpi.id} style={{ fontSize: "0.83rem", color: "var(--text-muted)", marginBottom: 4, lineHeight: 1.5 }}>
-                          • Improve <strong style={{ color: "var(--text-main)" }}>{kpi.label}</strong>: score was {kpi.score}/5 — focus on this in the next call.
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             );
           })}
 
-          {/* General (unmatched) tips */}
+          {/* General (unmatched) tips — exclude any already shown as KPI-specific inline tips */}
           {(() => {
-            const generalTips = parsedTips.filter((t) => t.dim === "General");
+            const generalTips = parsedTips.filter((t) => t.dim === "General" && !allKpiLabels.some((label) => t.text.toLowerCase().startsWith(label.toLowerCase() + ":")));
             if (!generalTips.length) return null;
             return (
               <div style={{ borderRadius: 12, border: "1px solid rgba(56,189,248,0.2)", overflow: "hidden" }}>
@@ -912,36 +971,74 @@ export default function MeetingReportPage() {
             <div className="card">
               <h2 style={{ marginBottom: 14 }}>What Went Well</h2>
               {r.pros?.length ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {parseDimPrefixed(r.pros).map((item, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <span style={{ color: "#4ade80", fontWeight: 800, fontSize: "1rem", lineHeight: 1.4, flexShrink: 0 }}>&#10003;</span>
-                      <div style={{ fontSize: "0.88rem", lineHeight: 1.55, color: "var(--text-muted)" }}>
-                        {item.dim !== "General" && (
-                          <span style={{ fontWeight: 700, color: "var(--text-main)", marginRight: 4 }}>{item.dim}:</span>
-                        )}
-                        {item.text}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {parseDimPrefixed(r.pros).map((item, idx) => {
+                    // Parse inline quote: "Dimension: title — 'quote'"
+                    const quoteMatch = item.text.match(/^(.*?)\s+[—–-]+\s+'(.+)'$/);
+                    const title = quoteMatch ? quoteMatch[1].trim() : item.text;
+                    const quote = quoteMatch ? quoteMatch[2].trim() : null;
+                    return (
+                      <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <span style={{ color: "#4ade80", fontWeight: 800, fontSize: "1rem", lineHeight: 1.4, flexShrink: 0 }}>&#10003;</span>
+                        <div style={{ fontSize: "0.88rem", lineHeight: 1.55, color: "var(--text-muted)" }}>
+                          {item.dim !== "General" && (
+                            <span style={{ fontWeight: 700, color: "var(--text-main)", marginRight: 4 }}>{item.dim}:</span>
+                          )}
+                          {title}
+                          {quote && (
+                            <div style={{ marginTop: 4, fontSize: "0.77rem", fontStyle: "italic", color: "var(--text-muted)", borderLeft: "2px solid rgba(74,222,128,0.4)", paddingLeft: 8, lineHeight: 1.5, opacity: 0.85 }}>
+                              &ldquo;{quote}&rdquo;
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : <div className="muted">No pros recorded.</div>}
             </div>
             <div className="card">
               <h2 style={{ marginBottom: 14 }}>What Went Wrong</h2>
               {r.cons?.length ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {parseDimPrefixed(r.cons).map((item, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <span style={{ color: "#f87171", fontWeight: 800, fontSize: "1rem", lineHeight: 1.4, flexShrink: 0 }}>&#10007;</span>
-                      <div style={{ fontSize: "0.88rem", lineHeight: 1.55, color: "var(--text-muted)" }}>
-                        {item.dim !== "General" && (
-                          <span style={{ fontWeight: 700, color: "var(--text-main)", marginRight: 4 }}>{item.dim}:</span>
-                        )}
-                        {item.text}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {r.cons.map((item, idx) => {
+                    // New object format
+                    if (item && typeof item === "object") {
+                      return (
+                        <div key={idx} style={{ borderRadius: 8, border: "1px solid rgba(248,113,113,0.18)", overflow: "hidden" }}>
+                          <div style={{ padding: "8px 12px", background: "rgba(248,113,113,0.06)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ color: "#f87171", fontWeight: 800, fontSize: "0.95rem", flexShrink: 0 }}>&#10007;</span>
+                            {item.dimension && <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#f87171", background: "rgba(248,113,113,0.12)", borderRadius: 99, padding: "2px 8px", border: "1px solid rgba(248,113,113,0.25)" }}>{item.dimension}</span>}
+                            {item.kpi && <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-main)" }}>{item.kpi}</span>}
+                          </div>
+                          <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+                            {item.explanation && <div style={{ fontSize: "0.84rem", color: "var(--text-muted)", lineHeight: 1.55 }}>{item.explanation}</div>}
+                            {item.quote && (
+                              <div style={{ fontSize: "0.77rem", fontStyle: "italic", color: "var(--text-muted)", borderLeft: "2px solid rgba(248,113,113,0.35)", paddingLeft: 8, lineHeight: 1.5, opacity: 0.85 }}>
+                                &ldquo;{item.quote}&rdquo;
+                              </div>
+                            )}
+                            {item.suggestion && (
+                              <div style={{ fontSize: "0.8rem", color: "#38bdf8", background: "rgba(56,189,248,0.06)", borderRadius: 6, padding: "6px 10px", border: "1px solid rgba(56,189,248,0.15)", lineHeight: 1.5 }}>
+                                <span style={{ fontWeight: 700 }}>Suggestion: </span>{item.suggestion}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    // Backward-compat string format
+                    const parsed = parseDimPrefixed([item])[0];
+                    return (
+                      <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <span style={{ color: "#f87171", fontWeight: 800, fontSize: "1rem", lineHeight: 1.4, flexShrink: 0 }}>&#10007;</span>
+                        <div style={{ fontSize: "0.88rem", lineHeight: 1.55, color: "var(--text-muted)" }}>
+                          {parsed.dim !== "General" && <span style={{ fontWeight: 700, color: "var(--text-main)", marginRight: 4 }}>{parsed.dim}:</span>}
+                          {parsed.text}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : <div className="muted">No cons recorded.</div>}
             </div>

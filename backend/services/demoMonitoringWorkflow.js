@@ -260,8 +260,11 @@ function scoreFromAnalysis(analysis) {
   const riskCount = Object.values(risks).filter(r => r.present_boolean === true).length;
   const riskDeduction = riskCount * 5;
   const sentiment = analysis?.sentiment || "neutral";
+  const questionsCount = Number(analysis?.questionsCount || 0);
+  const qaPairsCount = Array.isArray(analysis?.qaPairs) ? analysis.qaPairs.length : 0;
+  const allQuestionsAnswered = questionsCount > 0 && qaPairsCount >= questionsCount;
 
-  return calculateDemoScores({ discoveryScore, rapportScore, demoScore, objectionsScore, engagementScore, closeScore, riskDeduction, sentiment });
+  return calculateDemoScores({ discoveryScore, rapportScore, demoScore, objectionsScore, engagementScore, closeScore, riskDeduction, sentiment, allQuestionsAnswered });
 }
 
 export async function analyzeAndScoreMeeting(meeting, { transcriptText, source = "unknown" }) {
@@ -281,7 +284,8 @@ export async function analyzeAndScoreMeeting(meeting, { transcriptText, source =
     qaPairs: Array.isArray(analysis.qaPairs) ? analysis.qaPairs : [],
     demoQualityEvaluation: analysis.demoQualityEvaluation || "",
     structuredDetails: analysis.structuredDetails || {},
-    riskFlags: analysis.riskFlags || {}
+    riskFlags: analysis.riskFlags || {},
+    kpiGaps: analysis.kpiGaps || {}
   });
 
   const scores = await scoreFromAnalysis(analysis);
