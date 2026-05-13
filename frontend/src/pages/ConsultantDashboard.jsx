@@ -8,10 +8,12 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle,
+  Eye,
   FileText,
   Link2,
   PlayCircle,
   RefreshCw,
+  Search,
   Star,
   Target,
   Trash2,
@@ -78,6 +80,9 @@ export default function ConsultantDashboard() {
     productName: "ServiceOps"
   });
   const [uploadingMeetingId, setUploadingMeetingId] = useState("");
+  const [rptSearch, setRptSearch] = useState("");
+  const [rptPage, setRptPage] = useState(1);
+  const RPT_PAGE_SIZE = 10;
   // isDemoMap derived from DB meetings — keyed by teamsMeetingId
   const isDemoMap = useMemo(() => {
     const map = new Map();
@@ -688,7 +693,7 @@ export default function ConsultantDashboard() {
             </div>
           </div>
 
-          <div className="card" style={{ background: "linear-gradient(135deg, rgba(30,27,75,0.6), rgba(17,24,39,0.8))" }}>
+          <div className="card">
             <div className="card__head" style={{ marginBottom: 20 }}>
               <h2 style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "1.2rem", fontWeight: 800 }}>
                 <Trophy size={20} color="var(--accent)" /> Score Breakdown
@@ -747,7 +752,7 @@ export default function ConsultantDashboard() {
                       {pct}<span style={{ fontSize: "1rem", opacity: 0.6, fontWeight: 600 }}>%</span>
                     </div>
 
-                    <div style={{ height: 7, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                    <div style={{ height: 7, borderRadius: 99, background: "var(--card-border)", overflow: "hidden" }}>
                       <div style={{
                         height: "100%", borderRadius: 99,
                         width: `${pct}%`,
@@ -1119,44 +1124,214 @@ export default function ConsultantDashboard() {
         </div>
       )}
 
-      {activeTab === "reports" && (
-        <div className="card">
-          <div className="card__head">
-            <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <FileText size={20} color="var(--purple)" /> My Reports
-            </h2>
-            <span className="muted">{completedMeetings.length} reports</span>
-          </div>
-          <div className="table">
-            <div className="table__row table__row--head">
-              <div>Meeting</div>
-              <div>Date</div>
-              <div>Score</div>
-              <div>Report</div>
+      {activeTab === "reports" && (() => {
+        const q = rptSearch.trim().toLowerCase();
+        const filtered = completedMeetings.filter((m) =>
+          !q ||
+          (m.title || "").toLowerCase().includes(q) ||
+          (m.clientName || "").toLowerCase().includes(q) ||
+          (m.productName || "").toLowerCase().includes(q)
+        );
+        const totalPages = Math.max(1, Math.ceil(filtered.length / RPT_PAGE_SIZE));
+        const safePage = Math.min(rptPage, totalPages);
+        const pageItems = filtered.slice((safePage - 1) * RPT_PAGE_SIZE, safePage * RPT_PAGE_SIZE);
+
+        return (
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "18px 22px", borderBottom: "1px solid var(--card-border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <FileText size={20} color="var(--accent)" />
+                <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>My Reports</h2>
+                <span style={{ fontSize: "0.75rem", fontWeight: 600, background: "rgba(99,102,241,0.12)", color: "var(--accent)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 99, padding: "2px 10px" }}>
+                  {completedMeetings.length}
+                </span>
+              </div>
+              {/* Search */}
+              <div style={{ position: "relative", minWidth: 220 }}>
+                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+                <input
+                  value={rptSearch}
+                  onChange={(e) => { setRptSearch(e.target.value); setRptPage(1); }}
+                  placeholder="Search meetings…"
+                  style={{
+                    width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
+                    background: "var(--input-bg, rgba(255,255,255,0.05))", border: "1px solid var(--card-border)",
+                    borderRadius: 8, fontSize: "0.82rem", color: "var(--text)", outline: "none", boxSizing: "border-box"
+                  }}
+                />
+              </div>
             </div>
-            {completedMeetings.map((m) => {
-              const sc = scoreOrNull(m.score);
-              return (
-                <div className="table__row" key={m.id}>
-                  <div className="ellipsis" style={{ fontWeight: 600 }}>{m.title}</div>
-                  <div className="muted">{new Date(m.startTime).toLocaleDateString("en-IN")}</div>
-                  <div>{sc != null ? <span className="badge badge--green">{sc}/100</span> : "—"}</div>
-                  <div>
-                    <Link className="btn btn--ghost btn--sm" to={`/reports/${m.id}`}>
-                      View Report
-                    </Link>
-                  </div>
+
+            {/* Table */}
+            {pageItems.length === 0 ? (
+              <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--text-muted)", fontSize: "0.9rem" }}>
+                {completedMeetings.length === 0
+                  ? "No analyzed meetings yet. Join meetings from the Calendar tab."
+                  : "No results match your search."}
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem", tableLayout: "fixed" }}>
+                  <thead>
+                    <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--card-border)" }}>
+                      <th style={rptTh("48px", "center")}>#</th>
+                      <th style={rptTh("auto", "left")}>Meeting</th>
+                      <th style={rptTh("130px", "center")}>Date</th>
+                      <th style={rptTh("130px", "center")}>Score</th>
+                      <th style={rptTh("100px", "center")}>Report</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageItems.map((m, idx) => {
+                      const sc = scoreOrNull(m.score);
+                      const rowNum = (safePage - 1) * RPT_PAGE_SIZE + idx + 1;
+                      const scColor = sc != null ? scoreColor(sc) : "var(--text-muted)";
+                      const pct = sc != null ? Math.min(100, sc) : 0;
+                      return (
+                        <tr key={m.id} style={{ borderBottom: "1px solid var(--card-border)", transition: "background 0.12s" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.025)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          {/* # */}
+                          <td style={rptTd("center")}>
+                            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>{rowNum}</span>
+                          </td>
+
+                          {/* Meeting title */}
+                          <td style={{ ...rptTd("left"), overflow: "hidden" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{
+                                width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                                background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)",
+                                display: "flex", alignItems: "center", justifyContent: "center"
+                              }}>
+                                <FileText size={15} color="var(--accent)" />
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
+                                <div style={{ fontWeight: 700, fontSize: "0.88rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {m.title || "Untitled Meeting"}
+                                </div>
+                                {(m.clientName || m.productName) && (
+                                  <div style={{ fontSize: "0.73rem", color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {[m.clientName, m.productName].filter(Boolean).join(" · ")}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Date */}
+                          <td style={{ ...rptTd("center"), color: "var(--text-muted)", fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                            {m.startTime ? new Date(m.startTime).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                          </td>
+
+                          {/* Score */}
+                          <td style={rptTd("center")}>
+                            {sc != null ? (
+                              <div style={{ display: "inline-block", minWidth: 80 }}>
+                                <span style={{
+                                  display: "block", fontWeight: 800, fontSize: "0.95rem",
+                                  color: scColor, background: scColor + "18",
+                                  border: "1px solid " + scColor + "40",
+                                  borderRadius: 99, padding: "2px 12px", marginBottom: 5, textAlign: "center"
+                                }}>
+                                  {sc}
+                                </span>
+                                <div style={{ height: 4, borderRadius: 99, background: "var(--card-border)", overflow: "hidden" }}>
+                                  <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: scColor, transition: "width 0.6s ease" }} />
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Pending</span>
+                            )}
+                          </td>
+
+                          {/* Action */}
+                          <td style={rptTd("center")}>
+                            <Link
+                              to={`/reports/${m.id}`}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 5,
+                                fontSize: "0.8rem", fontWeight: 600,
+                                color: "var(--accent)", textDecoration: "none",
+                                padding: "5px 12px", borderRadius: 8,
+                                border: "1px solid rgba(99,102,241,0.3)",
+                                background: "rgba(99,102,241,0.08)"
+                              }}
+                            >
+                              <Eye size={13} /> View
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 22px", borderTop: "1px solid var(--card-border)", flexWrap: "wrap", gap: 8 }}>
+                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                  Showing {(safePage - 1) * RPT_PAGE_SIZE + 1}–{Math.min(safePage * RPT_PAGE_SIZE, filtered.length)} of {filtered.length}
+                </span>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button
+                    onClick={() => setRptPage(p => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--card-border)", background: "transparent", color: safePage === 1 ? "var(--text-muted)" : "var(--text)", cursor: safePage === 1 ? "default" : "pointer", fontSize: "0.8rem" }}
+                  >‹ Prev</button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                    .reduce((acc, p, i, arr) => {
+                      if (i > 0 && p - arr[i - 1] > 1) acc.push("…");
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) =>
+                      p === "…" ? (
+                        <span key={`e${i}`} style={{ padding: "4px 6px", color: "var(--text-muted)", fontSize: "0.8rem" }}>…</span>
+                      ) : (
+                        <button key={p} onClick={() => setRptPage(p)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--card-border)", fontSize: "0.8rem", cursor: "pointer", background: p === safePage ? "var(--accent)" : "transparent", color: p === safePage ? "#fff" : "var(--text)", fontWeight: p === safePage ? 700 : 400 }}
+                        >{p}</button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setRptPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--card-border)", background: "transparent", color: safePage === totalPages ? "var(--text-muted)" : "var(--text)", cursor: safePage === totalPages ? "default" : "pointer", fontSize: "0.8rem" }}
+                  >Next ›</button>
                 </div>
-              );
-            })}
-            {completedMeetings.length === 0 && (
-              <div className="muted" style={{ padding: 20 }}>
-                No analyzed meetings yet. Join meetings from the Calendar tab.
               </div>
             )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
+}
+
+function rptTh(width, align) {
+  return {
+    padding: "10px 16px",
+    textAlign: align,
+    fontSize: "0.72rem",
+    fontWeight: 700,
+    color: "var(--text-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    width: width !== "auto" ? width : undefined,
+    whiteSpace: "nowrap"
+  };
+}
+
+function rptTd(align) {
+  return {
+    padding: "13px 16px",
+    textAlign: align,
+    verticalAlign: "middle"
+  };
 }
